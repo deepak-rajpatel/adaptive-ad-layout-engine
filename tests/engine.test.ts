@@ -101,7 +101,7 @@ describe("priority-based degradation", () => {
     }
   });
   it("treats priority 1 as most important when priorities change", () => {
-    const flipped = toSpec({ ...sample, priorities: { ...sample.priorities, brand: 1, offer: 5 } });
+    const flipped = toSpec({ ...sample, useGoalPriorities: false, priorities: { ...sample.priorities, brand: 1, offer: 5 } });
     const r = resolve(flipped, { ...tight, height: 64 }, measure);
     expect(r.omitted[0]?.id).toBe("price");
   });

@@ -28,6 +28,10 @@ describe("goal priorities", () => {
     const on = toSpec({ ...base, goal: "Sales" });
     expect(on.elements.find((e) => e.id === "price")!.priority).toBe(goalPriorities.Sales.offer);
   });
+  it("Sales intent equals the brief's example priorities, so the demo layouts are unchanged", () => {
+    expect(goalPriorities.Sales).toEqual(sample.priorities);
+    expect(toSpec(sample)).toEqual(toSpec({ ...sample, useGoalPriorities: false }));
+  });
   it("recompose the same surface differently for Awareness and Sales", () => {
     const awareness = resolve(toSpec({ ...base, goal: "Awareness" }), bannerSurface, measure);
     const sales = resolve(toSpec({ ...base, goal: "Sales" }), bannerSurface, measure);

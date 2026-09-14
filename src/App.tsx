@@ -40,6 +40,13 @@ import {
 import { resolve } from "./engine/resolver";
 import { renderCanvas } from "./render/canvas";
 import { toSpec, type Creative } from "./lib/creative";
+import {
+  ctaOptions,
+  effectivePriorities,
+  goals,
+  intentCopy,
+} from "./engine/creativeModel";
+import type { Goal } from "./engine/placements";
 import { sample, surfaces } from "./lib/data";
 import { measure } from "./lib/measure";
 import { supabase } from "./lib/supabase";
@@ -120,6 +127,7 @@ export default function App() {
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
   const [compare, setCompare] = useState(true);
+  const [ctaCustom, setCtaCustom] = useState(false);
   const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
   const [draftStatus, setDraftStatus] = useState("Draft restored");
@@ -772,15 +780,42 @@ export default function App() {
                   A single source for every placement.
                 </p>
                 <div className="editor-fields">
-                  {(["brand", "headline", "offer", "cta"] as const).map(
+                  <label className="field">
+                    <span>
+                      Intent <small>What should this ad achieve?</small>
+                    </span>
+                    <select
+                      value={creative.goal}
+                      onChange={(e) => {
+                        const goal = e.target.value as Goal;
+                        setCreative((c) => {
+                          // Swap the CTA only if it was one of the old intent's suggestions.
+                          const suggested = intentCopy[c.goal].ctas.some(
+                            (x) => x.toLowerCase() === c.cta.trim().toLowerCase(),
+                          );
+                          return {
+                            ...c,
+                            goal,
+                            useGoalPriorities: true,
+                            cta: suggested ? intentCopy[goal].ctas[0] : c.cta,
+                          };
+                        });
+                      }}
+                    >
+                      {goals.map((g) => (
+                        <option key={g} value={g}>
+                          {intentCopy[g].label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {(["brand", "headline", "offer"] as const).map(
                     (key) => (
                       <label className="field" key={key}>
                         <span>
                           {key === "offer"
-                            ? "Offer"
-                            : key === "cta"
-                              ? "Call to action"
-                              : key}
+                            ? intentCopy[creative.goal].offerLabel
+                            : key}
                           <small>
                             {creative[key].length}/
                             {key === "headline" ? 160 : 60}
@@ -797,12 +832,66 @@ export default function App() {
                           <input
                             value={creative[key]}
                             maxLength={60}
+                            placeholder={
+                              key === "offer"
+                                ? intentCopy[creative.goal].offerHint
+                                : undefined
+                            }
                             onChange={(e) => update(key, e.target.value)}
                           />
                         )}
                       </label>
                     ),
                   )}
+                  {(() => {
+                    const match = ctaOptions.find(
+                      (o) => o.toLowerCase() === creative.cta.trim().toLowerCase(),
+                    );
+                    const custom = ctaCustom || !match;
+                    const suggested = intentCopy[creative.goal].ctas;
+                    return (
+                      <label className="field">
+                        <span>
+                          Call to action <small>{creative.cta.length}/60</small>
+                        </span>
+                        <select
+                          value={custom ? "__custom" : match}
+                          onChange={(e) => {
+                            if (e.target.value === "__custom") {
+                              setCtaCustom(true);
+                              return;
+                            }
+                            setCtaCustom(false);
+                            update("cta", e.target.value);
+                          }}
+                        >
+                          <optgroup
+                            label={`Suggested for ${intentCopy[creative.goal].label}`}
+                          >
+                            {suggested.map((o) => (
+                              <option key={o}>{o}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="All buttons">
+                            {ctaOptions
+                              .filter((o) => !suggested.includes(o))
+                              .map((o) => (
+                                <option key={o}>{o}</option>
+                              ))}
+                          </optgroup>
+                          <option value="__custom">Custom…</option>
+                        </select>
+                        {custom && (
+                          <input
+                            aria-label="Custom call to action"
+                            value={creative.cta}
+                            maxLength={60}
+                            onChange={(e) => update("cta", e.target.value)}
+                          />
+                        )}
+                      </label>
+                    );
+                  })()}
                 </div>
                 <div className="field-label">
                   Product image <span>PNG, JPG, WebP</span>
@@ -892,23 +981,42 @@ export default function App() {
                   <summary>
                     Element priorities <ChevronDown size={14} />
                   </summary>
+                  <label className="range-field">
+                    <span>
+                      <span>
+                        <input
+                          type="checkbox"
+                          checked={creative.useGoalPriorities}
+                          onChange={(e) =>
+                            update("useGoalPriorities", e.target.checked)
+                          }
+                        />{" "}
+                        Set by intent ({intentCopy[creative.goal].label})
+                      </span>
+                    </span>
+                  </label>
                   <p className="help-text">
                     1 is most important. Higher numbers shrink first, then drop.
-                    Headline (priority {creative.priorities.headline}) and CTA
-                    (priority {creative.priorities.cta}) are required.
+                    Headline (priority {effectivePriorities(creative).priorities.headline}) and CTA
+                    (priority {effectivePriorities(creative).priorities.cta}) are required.
+                    {creative.useGoalPriorities &&
+                      " Untick “Set by intent” to edit priorities by hand."}
                   </p>
                   {(["brand", "image", "offer"] as const).map((id) => (
                     <label className="range-field" key={id}>
                       <span>
-                        {priorityLabels[id]}{" "}
-                        <b>Priority {creative.priorities[id]}</b>
+                        {id === "offer"
+                          ? intentCopy[creative.goal].offerLabel
+                          : priorityLabels[id]}{" "}
+                        <b>Priority {effectivePriorities(creative).priorities[id]}</b>
                       </span>
                       <input
                         type="range"
                         min="1"
                         max="5"
                         step="1"
-                        value={creative.priorities[id]}
+                        disabled={creative.useGoalPriorities}
+                        value={effectivePriorities(creative).priorities[id]}
                         onChange={(e) =>
                           update("priorities", {
                             ...creative.priorities,

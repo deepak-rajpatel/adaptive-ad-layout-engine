@@ -59,12 +59,32 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
   offer: false,
 };
 
-/** Goal-driven priorities (1 = most important). Used when `useGoalPriorities` is on. */
+/**
+ * Intent-driven priorities (1 = most important). Used when `useGoalPriorities` is on.
+ * Sales is the brief's product ad, so it keeps the brief's example priorities exactly.
+ * Intent only changes data the resolver receives, never geometry.
+ */
 export const goalPriorities: Record<Goal, Record<CreativeKey, Priority>> = {
-  Awareness: { image: 1, headline: 1, brand: 2, cta: 3, offer: 4 },
+  Awareness: { brand: 1, image: 1, headline: 2, cta: 3, offer: 4 },
   Consideration: { headline: 1, image: 2, cta: 2, offer: 3, brand: 4 },
-  Leads: { headline: 1, cta: 1, image: 2, offer: 3, brand: 4 },
-  Sales: { offer: 1, cta: 1, headline: 2, image: 2, brand: 4 },
+  Leads: { headline: 1, cta: 1, offer: 2, image: 2, brand: 3 },
+  Sales: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
+};
+
+/** CTA labels offered in the editor (Taboola's list; "None" is left out because the CTA is required). */
+export const ctaOptions: readonly string[] = [
+  "Read More", "Learn More", "Shop Now", "Download Now", "Install Now", "Sign Up",
+  "Get Quote", "Book Now", "Play Now", "Watch Now", "Listen Now", "Apply Now",
+  "Contact Us", "Order Now", "Search Now", "Try Now", "See More", "Get Offer",
+  "View More", "Spin Now",
+];
+
+/** What each intent asks for: the secondary-text label and the suggested CTAs (first = default). */
+export const intentCopy: Record<Goal, { label: string; offerLabel: string; offerHint: string; ctas: readonly string[] }> = {
+  Awareness: { label: "Brand awareness", offerLabel: "Tagline", offerHint: "Optional, e.g. Since 1998", ctas: ["Learn More", "See More", "Watch Now"] },
+  Consideration: { label: "Traffic / consideration", offerLabel: "Teaser", offerHint: "e.g. 5-minute read", ctas: ["Read More", "Learn More", "View More"] },
+  Leads: { label: "Lead generation", offerLabel: "Incentive", offerHint: "e.g. Free quote in 24 h", ctas: ["Sign Up", "Get Quote", "Contact Us", "Book Now", "Apply Now"] },
+  Sales: { label: "Sales", offerLabel: "Price or offer", offerHint: "e.g. From $129", ctas: ["Shop Now", "Order Now", "Get Offer"] },
 };
 /** Default CTA suggestion per campaign type. Suggestions never change the CTA automatically. */
 export const campaignCta: Record<CampaignType, string> = {
@@ -89,9 +109,8 @@ export function effectivePriorities(c: CreativeData): { priorities: Record<Creat
 }
 
 /**
- * Priorities follow the brief's example spec: headline/image 1, CTA/offer 2, logo 3.
- * Goal priorities stay off for the sample so the brief's demo layouts are unchanged;
- * the planner offers a toggle.
+ * The brief's product ad. Intent is Sales, whose priorities equal the brief's example
+ * (headline/image 1, CTA/offer 2, logo 3), so the demo layouts are unchanged.
  */
 export const sample: CreativeData = {
   brand: "VOXORA",
@@ -106,8 +125,8 @@ export const sample: CreativeData = {
   focalY: 50,
   priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
   required: defaultRequired,
-  goal: "Awareness",
-  useGoalPriorities: false,
+  goal: "Sales",
+  useGoalPriorities: true,
   campaignType: "Product",
   destination: "",
   body: "",

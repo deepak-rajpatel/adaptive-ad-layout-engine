@@ -236,11 +236,13 @@ Each placement plan carries separate fields.
   - The editor may also show a grapheme count for display only.
   - Labels: "counted by {network} rules" if verified; otherwise "counted by the planner".
   - An unverified counting method makes the check advisory (warning at most). An unverified limit value drops the check.
-- **Goal priorities (default table):**
-  - Awareness: image and headline first;
+- **Goal priorities (default table, revised 14 Sep 2026 — "intent first"):**
+  - Awareness: brand and image first (logo becomes priority 1);
   - Consideration: headline first;
-  - Leads: headline and CTA first;
-  - Sales: offer and CTA first.
+  - Leads: headline and CTA first, incentive next;
+  - Sales: the brief's example priorities (headline/image 1, CTA/offer 2, logo 3), so the brief's product ad is the Sales intent and its demo layouts are unchanged.
+
+  The studio editor starts with an **Intent** dropdown (default Sales). Intent changes only data: the secondary-text label (Price / Incentive / Tagline / Teaser), the suggested CTAs, and element priorities. It never selects a layout. The CTA is a dropdown of Taboola's 20 labels plus Custom; "None" is excluded because the CTA is required on the brief's surfaces. The sample now has goal priorities on (superseding the step-6 departure below), since Sales priorities equal the brief's.
 
   The resolver is not changed; only the spec it receives.
 - **CTA precedence:**
