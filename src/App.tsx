@@ -59,7 +59,12 @@ import "./designer.css";
 import "./workflow.css";
 import { editedAgo } from "./lib/time";
 import { HomePage } from "./components/HomePage";
-import { CreatePage, type NewAd } from "./components/CreatePage";
+import {
+  CreatePage,
+  emptyCreateForm,
+  type CreateForm,
+  type NewAd,
+} from "./components/CreatePage";
 import { sample, surfaces } from "./lib/data";
 import { measure } from "./lib/measure";
 import { supabase } from "./lib/supabase";
@@ -172,6 +177,8 @@ export default function App() {
     return "home";
   });
   const [projectName, setProjectName] = useState(draft.name);
+  // Unfinished Create-page inputs survive navigating away (cleared once the ad is created).
+  const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
   const [draftSavedAt, setDraftSavedAt] = useState(draft.savedAt);
   const draftWritten = useRef(false);
   // Block body on purpose: some browsers return a Promise from scrollTo, which React
@@ -647,7 +654,7 @@ export default function App() {
     }
   }
   function createAd(ad: NewAd) {
-    loadWork(
+    const created = loadWork(
       {
         creative: {
           ...sample,
@@ -670,8 +677,10 @@ export default function App() {
       },
       ad.name || "Untitled creative",
     );
+    if (created) setCreateForm(emptyCreateForm);
   }
-  async function importFromHome(file: File) {
+  /** Imports a project file after keeping any unsaved draft (Home and Ad Designer). */
+  async function importPreserving(file: File) {
     const kept = preserveDraft();
     if (kept === "failed") return;
     if (await importProject(file)) {
@@ -1424,8 +1433,10 @@ export default function App() {
                   accept="application/json,.json"
                   ref={importRef}
                   onChange={(e) => {
-                    void importProject(e.target.files?.[0]);
+                    const file = e.target.files?.[0];
                     e.target.value = "";
+                    // Same protection as Home: keep an unsaved draft before replacing it.
+                    if (file) void importPreserving(file);
                   }}
                 />
               </aside>
@@ -2160,7 +2171,7 @@ export default function App() {
                 onExample={() =>
                   loadWork({ creative: sample, surface: surfaces[3] }, "")
                 }
-                onImport={(file) => void importFromHome(file)}
+                onImport={(file) => void importPreserving(file)}
                 onOpen={openSaved}
                 onViewAll={() => setPage("library")}
               />
@@ -2168,6 +2179,8 @@ export default function App() {
             {page === "create" && (
               <CreatePage
                 returning={isUserWork || recentCards.length > 0}
+                form={createForm}
+                onFormChange={setCreateForm}
                 onBack={() => setPage("home")}
                 onExample={() =>
                   loadWork({ creative: sample, surface: surfaces[3] }, "")

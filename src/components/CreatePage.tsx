@@ -1,4 +1,10 @@
-import { useRef, useState, type FormEvent } from "react";
+import {
+  useRef,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,6 +31,26 @@ export interface NewAd {
   image: string;
 }
 
+/** Unfinished setup values, held by the app so they survive leaving this page. */
+export interface CreateForm {
+  goal: Goal | null;
+  name: string;
+  headline: string;
+  offer: string;
+  cta: string;
+  brand: string;
+  image: string;
+}
+export const emptyCreateForm: CreateForm = {
+  goal: null,
+  name: "",
+  headline: "",
+  offer: "",
+  cta: "",
+  brand: "",
+  image: "",
+};
+
 const tile: Record<Goal, { label: string; icon: typeof ShoppingCart }> = {
   Sales: { label: "Sales", icon: ShoppingCart },
   Leads: { label: "Leads", icon: Users },
@@ -35,22 +61,22 @@ const tile: Record<Goal, { label: string; icon: typeof ShoppingCart }> = {
 /** Short setup: only the headline is needed to begin (the button text gets a goal default). */
 export function CreatePage({
   returning,
+  form,
+  onFormChange,
   onCreate,
   onExample,
   onBack,
 }: {
   returning: boolean;
+  form: CreateForm;
+  onFormChange: Dispatch<SetStateAction<CreateForm>>;
   onCreate: (ad: NewAd) => void;
   onExample: () => void;
   onBack: () => void;
 }) {
-  const [goal, setGoal] = useState<Goal | null>(null);
-  const [name, setName] = useState("");
-  const [headline, setHeadline] = useState("");
-  const [offer, setOffer] = useState("");
-  const [cta, setCta] = useState("");
-  const [brand, setBrand] = useState("");
-  const [image, setImage] = useState("");
+  const { goal, name, headline, offer, cta, brand, image } = form;
+  const set = (patch: Partial<CreateForm>) =>
+    onFormChange((f) => ({ ...f, ...patch }));
   const [imageError, setImageError] = useState("");
   const [reading, setReading] = useState(false);
   const [tried, setTried] = useState(false);
@@ -64,6 +90,8 @@ export function CreatePage({
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    // Wait for a chosen image to finish processing, so it is never silently dropped.
+    if (reading) return;
     if (missingHeadline) {
       setTried(true);
       headlineRef.current?.focus();
@@ -101,10 +129,9 @@ export function CreatePage({
                     value={g}
                     checked={goal === g}
                     onChange={() => {
-                      setGoal(g);
                       // Keep an explicitly chosen button text; otherwise follow the new goal.
-                      if (cta && !intentCopy[effectiveGoal].ctas.includes(cta)) return;
-                      setCta("");
+                      const keepCta = !!cta && !intentCopy[effectiveGoal].ctas.includes(cta);
+                      set(keepCta ? { goal: g } : { goal: g, cta: "" });
                     }}
                   />
                   <Icon size={22} aria-hidden="true" />
@@ -125,7 +152,7 @@ export function CreatePage({
                 value={name}
                 maxLength={120}
                 placeholder="e.g. Summer launch"
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => set({ name: e.target.value })}
               />
             </label>
             <label className="field">
@@ -138,7 +165,7 @@ export function CreatePage({
                 placeholder="What do you want to say?"
                 aria-invalid={(tried && missingHeadline) || undefined}
                 aria-describedby="headline-hint"
-                onChange={(e) => setHeadline(e.target.value)}
+                onChange={(e) => set({ headline: e.target.value })}
               />
               <small
                 id="headline-hint"
@@ -163,12 +190,12 @@ export function CreatePage({
                   value={offer}
                   maxLength={60}
                   placeholder={intentCopy[effectiveGoal].offerHint}
-                  onChange={(e) => setOffer(e.target.value)}
+                  onChange={(e) => set({ offer: e.target.value })}
                 />
               </label>
               <label className="field">
                 <span>Button text</span>
-                <select value={button} onChange={(e) => setCta(e.target.value)}>
+                <select value={button} onChange={(e) => set({ cta: e.target.value })}>
                   <optgroup label={`Suggested for ${intentCopy[effectiveGoal].label}`}>
                     {suggested.map((o) => (
                       <option key={o}>{o}</option>
@@ -197,7 +224,7 @@ export function CreatePage({
                     <button type="button" className="button small" onClick={() => fileRef.current?.click()}>
                       Replace
                     </button>
-                    <button type="button" className="button small" onClick={() => setImage("")}>
+                    <button type="button" className="button small" onClick={() => set({ image: "" })}>
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
@@ -232,7 +259,8 @@ export function CreatePage({
                   setReading(true);
                   setImageError("");
                   try {
-                    setImage(await imageData(file));
+                    const data = await imageData(file);
+                    set({ image: data });
                   } catch (err) {
                     setImageError(err instanceof Error ? err.message : "The image could not be read.");
                   } finally {
@@ -250,7 +278,7 @@ export function CreatePage({
                 <span>
                   Brand <em>(optional)</em>
                 </span>
-                <input value={brand} maxLength={60} onChange={(e) => setBrand(e.target.value)} />
+                <input value={brand} maxLength={60} onChange={(e) => set({ brand: e.target.value })} />
               </label>
               <small className="create-hint">
                 More copy, colours and layout settings are in the Ad Designer.
@@ -262,7 +290,7 @@ export function CreatePage({
           <button type="button" className="text-link" onClick={onExample}>
             Use an example instead
           </button>
-          <button type="submit" className="button primary">
+          <button type="submit" className="button primary" disabled={reading}>
             Open Ad Designer <ArrowRight size={16} />
           </button>
         </div>

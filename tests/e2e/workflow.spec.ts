@@ -103,6 +103,45 @@ test.describe("desktop", () => {
   });
 });
 
+test.describe("work protection", () => {
+  test.use({ viewport: { width: 1440, height: 1000 } });
+
+  test("unfinished Create inputs survive navigation", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create an ad" }).first().click();
+    await page.locator(".goal-tile", { hasText: "Awareness" }).click();
+    await page.getByLabel("Creative name").fill("Half done");
+    await page.getByLabel("Headline").fill("Not finished yet");
+    await nav(page, "Ad platforms");
+    await nav(page, "Home");
+    await page.getByRole("button", { name: "Create an ad" }).first().click();
+    await expect(page.getByLabel("Creative name")).toHaveValue("Half done");
+    await expect(page.getByLabel("Headline")).toHaveValue("Not finished yet");
+    await expect(page.locator(".goal-tile.selected")).toHaveText(/Awareness/);
+  });
+
+  test("importing JSON in the Ad Designer keeps the unsaved draft first", async ({ page }) => {
+    await page.goto("/?view=designer");
+    await page.locator(".accordion", { hasText: "Project options" }).locator("summary").click();
+    const [json] = await Promise.all([
+      page.waitForEvent("download"),
+      page.getByRole("button", { name: "Export JSON" }).click(),
+    ]);
+    const project = JSON.parse(readFileSync((await json.path())!, "utf8"));
+    project.creative.headline = "Imported headline.";
+    await headline(page).fill("My unsaved edit");
+    await page.locator('#panel-edit input[type="file"][accept*="json"]').setInputFiles({
+      name: "project.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(project)),
+    });
+    await expect(headline(page)).toHaveValue("Imported headline.");
+    await expect(page.getByText(/previous draft was kept in My creatives/)).toBeVisible();
+    await nav(page, "My creatives");
+    await expect(page.getByRole("heading", { name: "VOXORA (draft)" })).toBeVisible();
+  });
+});
+
 test.describe("phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
