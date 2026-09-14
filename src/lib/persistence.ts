@@ -55,7 +55,9 @@ export function parseProject(value: unknown): {
   // Imported metadata is never allowed to turn a reference link into a script URL.
   if (surface.source && !/^https:\/\//i.test(surface.source))
     delete surface.source;
-  return { creative: data.creative, surface };
+  const creative = { ...data.creative };
+  if (creative.image === "/headphones.png") creative.image = "/headphones.jpg";
+  return { creative, surface };
 }
 export function download(blob: Blob, name: string) {
   const a = document.createElement("a");

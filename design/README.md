@@ -3,7 +3,7 @@
 Both assets were made with the built-in image generation tool on 14 September 2026. No external image-generation API key was used.
 
 - `responsive-reference.png`: one reference board showing desktop, tablet, and smartphone layouts. It informed the implemented responsive UI; it is not a screenshot or a claim of implemented controls.
-- `../public/headphones.png`: fictional unbranded sample product image used by the actual studio. The Voxora campaign is fictional.
+- `headphones-source.png` (original) and `../public/headphones.jpg` (web-optimized copy): fictional unbranded sample product image used by the actual studio. The Voxora campaign is fictional.
 
 ## Responsive reference prompt
 

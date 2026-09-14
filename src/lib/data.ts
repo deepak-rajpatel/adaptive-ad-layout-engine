@@ -4,7 +4,7 @@ export const sample: Creative = {
   headline: "Sound without limits.",
   price: "From $129",
   cta: "Shop now",
-  image: "/headphones.png",
+  image: "/headphones.jpg",
   background: "#f5f0e7",
   foreground: "#262d24",
   accent: "#c74620",

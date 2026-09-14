@@ -113,7 +113,7 @@ export function AssetLibrary({
       </p>
       <h3>From this browser</h3>
       <div className="asset-grid">
-        {Array.from(new Set(["/headphones.png", ...localImages])).map(
+        {Array.from(new Set(["/headphones.jpg", ...localImages])).map(
           (image, i) => (
             <button
               key={i}

@@ -38,3 +38,9 @@ The local guest studio is independently usable. The application reports cloud fa
 - Solver benchmark: 1,000 runs after 100 warm-up runs, Node 24.12.0; mean 0.283 ms, p95 0.552 ms. Uses a deterministic width stub and excludes browser font measurement/rendering. Reproduce with npm run benchmark.
 - At 320px, the header was corrected to two rows; document width no longer exceeds the viewport. Keyboard arrow navigation between mobile panels was checked.
 - PNG generation reported a 600 × 600px export in-browser. The in-app browser did not expose a download-completion event, so file delivery should also be checked in a normal browser.
+
+## Deployment verification
+
+- Commit 1427254 passed GitHub Actions and Vercel deployment checks. The production URL returned HTTP 200 and the studio rendered in Chromium.
+- A read-only production Supabase check returned PGRST205 for public.creatives, confirming that the first migration had not yet been applied.
+- The generated PNG was slow on the test connection. A 128,930-byte JPEG web copy replaces the 1,674,977-byte original in the default creative (about 92% less data). The original remains in design, and the old asset URL redirects for saved-version compatibility.
