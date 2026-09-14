@@ -1,4 +1,5 @@
 // Canvas 2D renderer. Consumes the same ResolvedLayout as the DOM renderer.
+import { coverCrop } from "../engine/crop";
 import type { ResolvedLayout } from "../engine/layout";
 import { fontFamily } from "./dom";
 
@@ -28,14 +29,12 @@ export async function renderCanvas(
   for (const e of layout.elements) {
     if (e.kind === "image") {
       const img = images.get(e.id)!;
-      const scale = Math.max(e.width / img.width, e.height / img.height);
-      const dw = img.width * scale,
-        dh = img.height * scale;
+      const c = coverCrop(img.width, img.height, e.width, e.height, e.focalX, e.focalY);
       ctx.save();
       ctx.beginPath();
       ctx.roundRect(e.x, e.y, e.width, e.height, e.radius);
       ctx.clip();
-      ctx.drawImage(img, e.x - ((dw - e.width) * e.focalX) / 100, e.y - ((dh - e.height) * e.focalY) / 100, dw, dh);
+      ctx.drawImage(img, c.x, c.y, c.width, c.height, e.x, e.y, e.width, e.height);
       ctx.restore();
       continue;
     }

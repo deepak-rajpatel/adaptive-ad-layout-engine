@@ -18,22 +18,8 @@ import {
 } from "../engine/placements";
 import { inspectAsset } from "../lib/assetInfo";
 import type { Creative } from "../lib/creative";
-import { download, readLocal, writeLocal } from "../lib/persistence";
+import { download } from "../lib/persistence";
 
-const settingsKey = "omniframe:planner:v1";
-function initialSettings() {
-  const v = readLocal<unknown>(settingsKey, null);
-  const value =
-    v && typeof v === "object" ? (v as Record<string, unknown>) : {};
-  return {
-    goal:
-      typeof value.goal === "string" && Object.hasOwn(goalCta, value.goal)
-        ? (value.goal as Goal)
-        : ("Awareness" as Goal),
-    destination: typeof value.destination === "string" ? value.destination : "",
-    body: typeof value.body === "string" ? value.body : "",
-  };
-}
 export function CreativePlanner({
   creative,
   onChange,
@@ -43,10 +29,16 @@ export function CreativePlanner({
   onChange: (c: Creative) => void;
   onOpenStudio: (p: Placement) => void;
 }) {
-  const [settings, setSettings] = useState(initialSettings);
+  // Planner fields are part of the saved project (schema 3).
+  const settings = {
+    goal: creative.goal,
+    destination: creative.destination,
+    body: creative.body,
+  };
+  const setSettings = (next: typeof settings) =>
+    onChange({ ...creative, ...next });
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [error, setError] = useState("");
-  const [saveError, setSaveError] = useState("");
   const [busy, setBusy] = useState(false);
   const [network, setNetwork] = useState("All networks");
   const [status, setStatus] = useState("All statuses");
@@ -74,16 +66,6 @@ export function CreativePlanner({
       cancelled = true;
     };
   }, [src]);
-  useEffect(() => {
-    try {
-      writeLocal(settingsKey, settings);
-      setSaveError("");
-    } catch {
-      setSaveError(
-        "Planner fields could not be saved locally. Export the plan to keep them.",
-      );
-    }
-  }, [settings]);
   const results = useMemo(
     () =>
       asset
@@ -229,11 +211,6 @@ export function CreativePlanner({
           {error && (
             <p className="planner-error" role="alert">
               {error}
-            </p>
-          )}
-          {saveError && (
-            <p className="planner-error" role="alert">
-              {saveError}
             </p>
           )}
           <label className="field">

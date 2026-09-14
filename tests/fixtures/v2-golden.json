@@ -1,0 +1,1263 @@
+[
+ {
+  "name": "sample",
+  "project": {
+   "version": 2,
+   "creative": {
+    "brand": "VOXORA",
+    "headline": "Sound without limits.",
+    "price": "From $129",
+    "cta": "Shop now",
+    "image": "/headphones.jpg",
+    "background": "#f5f0e7",
+    "foreground": "#262d24",
+    "accent": "#c74620",
+    "focalX": 50,
+    "focalY": 50,
+    "priorities": {
+     "headline": 1,
+     "image": 1,
+     "cta": 2,
+     "price": 2,
+     "brand": 3
+    }
+   },
+   "surface": {
+    "minTextSize": 14,
+    "minContrast": 4.5,
+    "viewingDistance": "near",
+    "input": "touch",
+    "minTapTarget": 44,
+    "id": "portrait",
+    "name": "Mobile portrait",
+    "width": 320,
+    "height": 480,
+    "safeArea": {
+     "top": 24,
+     "right": 16,
+     "bottom": 24,
+     "left": 16
+    },
+    "category": "Required surfaces",
+    "note": "Mobile interstitial profile from the brief: 320 × 480 with a 44 px tap target."
+   }
+  },
+  "layouts": {
+   "portrait": {
+    "status": "ready",
+    "width": 320,
+    "height": 480,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 16,
+      "y": 24.00000000000003,
+      "width": 288,
+      "height": 17,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 3,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 14,
+      "lineHeight": 17,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 1 of 5 in the vertical stack of the stack arrangement, at (16, 24).",
+       "14 px, its preferred size.",
+       "Held at the surface's 14 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 53.96000000000003,
+      "width": 288,
+      "height": 90,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 38,
+      "lineHeight": 45,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 2 of 5 in the vertical stack of the stack arrangement, at (16, 54).",
+       "Required: never omitted by degradation.",
+       "38 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 156.92000000000002,
+      "width": 288,
+      "height": 202.16,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 1,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Row 3 of 5 in the vertical stack of the stack arrangement, at (16, 157).",
+       "288 × 202 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 372.04,
+      "width": 288,
+      "height": 27,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 2,
+      "lines": [
+       "From $129"
+      ],
+      "fontSize": 22.5,
+      "lineHeight": 27,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 4 of 5 in the vertical stack of the stack arrangement, at (16, 372).",
+       "22.5 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 412,
+      "width": 106,
+      "height": 44,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 2,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 14.7,
+      "lineHeight": 18,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 5 of 5 in the vertical stack of the stack arrangement, at (16, 412).",
+       "Required: never omitted by degradation.",
+       "14.7 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 82 px width.",
+       "106 × 44 px button sized to its label, meeting the 44 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "stack arrangement chosen (score 11.8) for a 0.67:1 surface; alternatives: gallery 2.4, split -20.2, strip -69.7.",
+     "Every element kept its preferred text size.",
+     "Safe area 24/16/24/16 px respected; text at least 14 px; tap targets at least 44 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "stack"
+   },
+   "landscape": {
+    "status": "ready",
+    "width": 480,
+    "height": 320,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 24,
+      "y": 16,
+      "width": 432,
+      "height": 24,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 3,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 20.2,
+      "lineHeight": 24,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (24, 16).",
+       "20.2 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 432 px width."
+      ]
+     },
+     {
+      "x": 24,
+      "y": 52.96,
+      "width": 432,
+      "height": 136,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 57,
+      "lineHeight": 68,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (24, 53).",
+       "Required: never omitted by degradation.",
+       "57 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 432 px width."
+      ]
+     },
+     {
+      "x": 24,
+      "y": 201.92000000000002,
+      "width": 238.8528,
+      "height": 102.08,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 1,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Lower-left panel (57% of the safe width) of the gallery arrangement, at (24, 202).",
+       "239 × 102 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 275.8128,
+      "y": 203.48000000000002,
+      "width": 180.1872,
+      "height": 40,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 2,
+      "lines": [
+       "From $129"
+      ],
+      "fontSize": 33.7,
+      "lineHeight": 40,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (276, 203).",
+       "33.7 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 180 px width."
+      ]
+     },
+     {
+      "x": 275.8128,
+      "y": 256.44,
+      "width": 135,
+      "height": 46,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 2,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 22,
+      "lineHeight": 26,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (276, 256).",
+       "Required: never omitted by degradation.",
+       "22 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 111 px width.",
+       "135 × 46 px button sized to its label, meeting the 44 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "gallery arrangement chosen (score 0.4) for a 1.50:1 surface; alternatives: strip -37.2.",
+     "Every element kept its preferred text size.",
+     "Safe area 16/24/16/24 px respected; text at least 14 px; tap targets at least 44 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "gallery"
+   },
+   "broadcast": {
+    "status": "ready",
+    "width": 1920,
+    "height": 250,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 192,
+      "y": 20,
+      "width": 210,
+      "height": 210,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 1,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Leading square-ish tile at the start of the strip of the strip arrangement, at (192, 20).",
+       "210 × 210 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 411.45,
+      "y": 57.275000000000006,
+      "width": 914.97,
+      "height": 38,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 3,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 32,
+      "lineHeight": 38,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Middle message column of the strip arrangement, at (411, 57).",
+       "32 px, its preferred size.",
+       "Held at the surface's 32 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 915 px width."
+      ]
+     },
+     {
+      "x": 411.45,
+      "y": 104.72500000000001,
+      "width": 914.97,
+      "height": 88,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without limits."
+      ],
+      "fontSize": 73.9,
+      "lineHeight": 88,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Middle message column of the strip arrangement, at (411, 105).",
+       "Required: never omitted by degradation.",
+       "73.9 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 915 px width."
+      ]
+     },
+     {
+      "x": 1335.8700000000001,
+      "y": 65.275,
+      "width": 392.12999999999994,
+      "height": 52,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 2,
+      "lines": [
+       "From $129"
+      ],
+      "fontSize": 43.7,
+      "lineHeight": 52,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Trailing offer column (30% of the remaining width) of the strip arrangement, at (1336, 65).",
+       "43.7 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 392 px width."
+      ]
+     },
+     {
+      "x": 1335.8700000000001,
+      "y": 126.72500000000001,
+      "width": 174,
+      "height": 58,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 2,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 32,
+      "lineHeight": 38,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Trailing offer column (30% of the remaining width) of the strip arrangement, at (1336, 127).",
+       "Required: never omitted by degradation.",
+       "32 px, its preferred size.",
+       "Held at the surface's 32 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 150 px width.",
+       "174 × 58 px button sized to its label (non-interactive surface: no tap target)."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "strip arrangement chosen (score 4.7) for a 7.68:1 surface; no other arrangement fit.",
+     "Every element kept its preferred text size.",
+     "Safe area 20/192/20/192 px respected; text at least 32 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "strip"
+   },
+   "kiosk": {
+    "status": "ready",
+    "width": 1080,
+    "height": 1080,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 48,
+      "y": 48,
+      "width": 984,
+      "height": 45,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 3,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 37.4,
+      "lineHeight": 45,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (48, 48).",
+       "37.4 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 984 px width."
+      ]
+     },
+     {
+      "x": 48,
+      "y": 125,
+      "width": 984,
+      "height": 250,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 105.6,
+      "lineHeight": 125,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (48, 125).",
+       "Required: never omitted by degradation.",
+       "105.6 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 984 px width."
+      ]
+     },
+     {
+      "x": 48,
+      "y": 407,
+      "width": 647.36,
+      "height": 625,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 1,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Lower-left panel (68% of the safe width) of the gallery arrangement, at (48, 407).",
+       "647 × 625 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 727.36,
+      "y": 632,
+      "width": 304.64,
+      "height": 74,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 2,
+      "lines": [
+       "From $129"
+      ],
+      "fontSize": 62.4,
+      "lineHeight": 74,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (727, 632).",
+       "62.4 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 305 px width."
+      ]
+     },
+     {
+      "x": 727.36,
+      "y": 738,
+      "width": 208,
+      "height": 69,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 2,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 40.8,
+      "lineHeight": 49,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (727, 738).",
+       "Required: never omitted by degradation.",
+       "40.8 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 184 px width.",
+       "208 × 69 px button sized to its label, meeting the 60 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "gallery arrangement chosen (score 18.5) for a 1.00:1 surface; alternatives: split -3.9, stack -4.7, strip -53.4.",
+     "Every element kept its preferred text size.",
+     "Safe area 48/48/48/48 px respected; text at least 24 px; tap targets at least 60 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "gallery"
+   }
+  }
+ },
+ {
+  "name": "variant",
+  "project": {
+   "version": 2,
+   "creative": {
+    "brand": "VOXORA",
+    "headline": "Sound without limits.",
+    "price": "From $129 with free two-day shipping and a two-year warranty",
+    "cta": "Shop now",
+    "image": "/headphones.jpg",
+    "background": "#f5f0e7",
+    "foreground": "#262d24",
+    "accent": "#c74620",
+    "focalX": 50,
+    "focalY": 50,
+    "priorities": {
+     "headline": 1,
+     "image": 2,
+     "cta": 1,
+     "price": 3,
+     "brand": 5
+    }
+   },
+   "surface": {
+    "minTextSize": 14,
+    "minContrast": 4.5,
+    "viewingDistance": "near",
+    "input": "touch",
+    "minTapTarget": 44,
+    "id": "portrait",
+    "name": "Mobile portrait",
+    "width": 320,
+    "height": 480,
+    "safeArea": {
+     "top": 24,
+     "right": 16,
+     "bottom": 24,
+     "left": 16
+    },
+    "category": "Required surfaces",
+    "note": "Mobile interstitial profile from the brief: 320 × 480 with a 44 px tap target."
+   }
+  },
+  "layouts": {
+   "portrait": {
+    "status": "ready",
+    "width": 320,
+    "height": 480,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 16,
+      "y": 24.00000000000003,
+      "width": 288,
+      "height": 17,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 5,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 14,
+      "lineHeight": 17,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 1 of 5 in the vertical stack of the stack arrangement, at (16, 24).",
+       "14 px, its preferred size.",
+       "Held at the surface's 14 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 53.96000000000003,
+      "width": 288,
+      "height": 90,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 38,
+      "lineHeight": 45,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 2 of 5 in the vertical stack of the stack arrangement, at (16, 54).",
+       "Required: never omitted by degradation.",
+       "38 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 156.92000000000002,
+      "width": 288,
+      "height": 148.16,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 2,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Row 3 of 5 in the vertical stack of the stack arrangement, at (16, 157).",
+       "288 × 148 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 318.04,
+      "width": 288,
+      "height": 81,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 3,
+      "lines": [
+       "From $129 with free",
+       "two-day shipping and a",
+       "two-year warranty"
+      ],
+      "fontSize": 22.5,
+      "lineHeight": 27,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 4 of 5 in the vertical stack of the stack arrangement, at (16, 318).",
+       "22.5 px, its preferred size.",
+       "3 lines, wrapped by measuring the text against a 288 px width."
+      ]
+     },
+     {
+      "x": 16,
+      "y": 412,
+      "width": 106,
+      "height": 44,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 1,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 14.7,
+      "lineHeight": 18,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Row 5 of 5 in the vertical stack of the stack arrangement, at (16, 412).",
+       "Required: never omitted by degradation.",
+       "14.7 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 82 px width.",
+       "106 × 44 px button sized to its label, meeting the 44 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "stack arrangement chosen (score 10.8) for a 0.67:1 surface; alternatives: gallery 1.8, split -21.1, strip -69.7.",
+     "Every element kept its preferred text size.",
+     "Safe area 24/16/24/16 px respected; text at least 14 px; tap targets at least 44 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "stack"
+   },
+   "landscape": {
+    "status": "adapted",
+    "width": 480,
+    "height": 320,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 24,
+      "y": 16,
+      "width": 432,
+      "height": 17,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 5,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 14,
+      "lineHeight": 17,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 0.6930693069306931,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (24, 16).",
+       "14 px, 69% of its preferred 20 px. Priority 5 text is reduced only after all lower-priority text (active plan: priority 3 secondary text truncated).",
+       "Held at the surface's 14 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 432 px width."
+      ]
+     },
+     {
+      "x": 24,
+      "y": 45.96,
+      "width": 432,
+      "height": 136,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 57,
+      "lineHeight": 68,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (24, 46).",
+       "Required: never omitted by degradation.",
+       "57 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 432 px width."
+      ]
+     },
+     {
+      "x": 24,
+      "y": 194.92000000000002,
+      "width": 284.9472,
+      "height": 109.08,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 2,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Lower-left panel (68% of the safe width) of the gallery arrangement, at (24, 195).",
+       "285 × 109 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 321.9072,
+      "y": 207.48000000000002,
+      "width": 134.09279999999998,
+      "height": 25,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 3,
+      "lines": [
+       "From $129 wi…"
+      ],
+      "fontSize": 20.9,
+      "lineHeight": 25,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 0.6201780415430266,
+      "truncated": true,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (322, 207).",
+       "20.9 px, 62% of its preferred 34 px. Priority 3 text is reduced only after all lower-priority text (active plan: priority 3 secondary text truncated).",
+       "1 line, wrapped by measuring the text against a 134 px width.",
+       "Truncated with an ellipsis: truncatable secondary text gives way before higher-priority content shrinks."
+      ]
+     },
+     {
+      "x": 321.9072,
+      "y": 245.44000000000003,
+      "width": 134.09279999999998,
+      "height": 46,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 1,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 22,
+      "lineHeight": 26,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (322, 245).",
+       "Required: never omitted by degradation.",
+       "22 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 110 px width.",
+       "134 × 46 px button sized to its label, meeting the 44 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "gallery arrangement chosen (score -20.7) for a 1.50:1 surface; alternatives: strip -58.8.",
+     "Degradation applied: priority 3 secondary text truncated.",
+     "Secondary text truncated with an ellipsis instead of dropping it.",
+     "Safe area 16/24/16/24 px respected; text at least 14 px; tap targets at least 44 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "gallery"
+   },
+   "broadcast": {
+    "status": "adapted",
+    "width": 1920,
+    "height": 250,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 192,
+      "y": 20,
+      "width": 210,
+      "height": 210,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 2,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Leading square-ish tile at the start of the strip of the strip arrangement, at (192, 20).",
+       "210 × 210 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 411.45,
+      "y": 57.275000000000006,
+      "width": 914.97,
+      "height": 38,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 5,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 32,
+      "lineHeight": 38,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Middle message column of the strip arrangement, at (411, 57).",
+       "32 px, its preferred size.",
+       "Held at the surface's 32 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 915 px width."
+      ]
+     },
+     {
+      "x": 411.45,
+      "y": 104.72500000000001,
+      "width": 914.97,
+      "height": 88,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without limits."
+      ],
+      "fontSize": 73.9,
+      "lineHeight": 88,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Middle message column of the strip arrangement, at (411, 105).",
+       "Required: never omitted by degradation.",
+       "73.9 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 915 px width."
+      ]
+     },
+     {
+      "x": 1335.8700000000001,
+      "y": 28.275000000000006,
+      "width": 392.12999999999994,
+      "height": 126,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 3,
+      "lines": [
+       "From $129 with free",
+       "two-day shipping and a",
+       "two-year warranty"
+      ],
+      "fontSize": 34.9,
+      "lineHeight": 42,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 0.7986270022883294,
+      "truncated": false,
+      "explanation": [
+       "Trailing offer column (30% of the remaining width) of the strip arrangement, at (1336, 28).",
+       "34.9 px, 80% of its preferred 44 px. Priority 3 text is reduced only after all lower-priority text (active plan: priority 3 text reduced to 80%).",
+       "3 lines, wrapped by measuring the text against a 392 px width."
+      ]
+     },
+     {
+      "x": 1335.8700000000001,
+      "y": 163.725,
+      "width": 174,
+      "height": 58,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 1,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 32,
+      "lineHeight": 38,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Trailing offer column (30% of the remaining width) of the strip arrangement, at (1336, 164).",
+       "Required: never omitted by degradation.",
+       "32 px, its preferred size.",
+       "Held at the surface's 32 px minimum text size.",
+       "1 line, wrapped by measuring the text against a 150 px width.",
+       "174 × 58 px button sized to its label (non-interactive surface: no tap target)."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "strip arrangement chosen (score 4.0) for a 7.68:1 surface; no other arrangement fit.",
+     "Degradation applied: priority 3 text reduced to 80%.",
+     "Safe area 20/192/20/192 px respected; text at least 32 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "strip"
+   },
+   "kiosk": {
+    "status": "ready",
+    "width": 1080,
+    "height": 1080,
+    "background": "#f5f0e7",
+    "elements": [
+     {
+      "x": 48,
+      "y": 48,
+      "width": 984,
+      "height": 45,
+      "kind": "text",
+      "id": "brand",
+      "role": "branding",
+      "priority": 5,
+      "lines": [
+       "VOXORA"
+      ],
+      "fontSize": 37.4,
+      "lineHeight": 45,
+      "fontWeight": 600,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (48, 48).",
+       "37.4 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 984 px width."
+      ]
+     },
+     {
+      "x": 48,
+      "y": 125,
+      "width": 984,
+      "height": 250,
+      "kind": "text",
+      "id": "headline",
+      "role": "primary",
+      "priority": 1,
+      "lines": [
+       "Sound without",
+       "limits."
+      ],
+      "fontSize": 105.6,
+      "lineHeight": 125,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Top band across the full safe width of the gallery arrangement, at (48, 125).",
+       "Required: never omitted by degradation.",
+       "105.6 px, its preferred size.",
+       "2 lines, wrapped by measuring the text against a 984 px width."
+      ]
+     },
+     {
+      "x": 48,
+      "y": 407,
+      "width": 647.36,
+      "height": 625,
+      "kind": "image",
+      "id": "image",
+      "role": "hero",
+      "priority": 2,
+      "src": "/headphones.jpg",
+      "focalX": 50,
+      "focalY": 50,
+      "radius": 8,
+      "explanation": [
+       "Lower-left panel (68% of the safe width) of the gallery arrangement, at (48, 407).",
+       "647 × 625 px: takes the space left after text is measured, cover-cropped at focal point 50% × 50%."
+      ]
+     },
+     {
+      "x": 727.36,
+      "y": 410,
+      "width": 304.64,
+      "height": 518,
+      "kind": "text",
+      "id": "price",
+      "role": "secondary",
+      "priority": 3,
+      "lines": [
+       "From $129",
+       "with free",
+       "two-day",
+       "shipping",
+       "and a",
+       "two-year",
+       "warranty"
+      ],
+      "fontSize": 62.4,
+      "lineHeight": 74,
+      "fontWeight": 700,
+      "align": "left",
+      "color": "#262d24",
+      "radius": 0,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (727, 410).",
+       "62.4 px, its preferred size.",
+       "7 lines, wrapped by measuring the text against a 305 px width."
+      ]
+     },
+     {
+      "x": 727.36,
+      "y": 960,
+      "width": 208,
+      "height": 69,
+      "kind": "button",
+      "id": "cta",
+      "role": "action",
+      "priority": 1,
+      "lines": [
+       "Shop now"
+      ],
+      "fontSize": 40.8,
+      "lineHeight": 49,
+      "fontWeight": 600,
+      "align": "center",
+      "color": "#ffffff",
+      "fill": "#c74620",
+      "radius": 8,
+      "scale": 1,
+      "truncated": false,
+      "explanation": [
+       "Lower-right offer column of the gallery arrangement, at (727, 960).",
+       "Required: never omitted by degradation.",
+       "40.8 px, its preferred size.",
+       "1 line, wrapped by measuring the text against a 184 px width.",
+       "208 × 69 px button sized to its label, meeting the 60 px minimum tap target."
+      ]
+     }
+    ],
+    "omitted": [],
+    "decisions": [
+     "gallery arrangement chosen (score 18.5) for a 1.00:1 surface; alternatives: split -4.7, stack -5.3, strip -53.4.",
+     "Every element kept its preferred text size.",
+     "Safe area 48/48/48/48 px respected; text at least 24 px; tap targets at least 60 px."
+    ],
+    "errors": [],
+    "contrast": 12.472961181603658,
+    "arrangement": "gallery"
+   }
+  }
+ }
+]

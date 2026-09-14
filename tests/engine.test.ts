@@ -101,12 +101,12 @@ describe("priority-based degradation", () => {
     }
   });
   it("treats priority 1 as most important when priorities change", () => {
-    const flipped = toSpec({ ...sample, priorities: { ...sample.priorities, brand: 1, price: 5 } });
+    const flipped = toSpec({ ...sample, priorities: { ...sample.priorities, brand: 1, offer: 5 } });
     const r = resolve(flipped, { ...tight, height: 64 }, measure);
     expect(r.omitted[0]?.id).toBe("price");
   });
   it("truncates secondary text with an ellipsis before dropping it", () => {
-    const long = toSpec({ ...sample, price: "From $129 with free two-day shipping and a two-year warranty" });
+    const long = toSpec({ ...sample, offer: "From $129 with free two-day shipping and a two-year warranty" });
     let truncatedSeen = false;
     for (let height = 90; height <= 400; height += 10)
       for (const width of [240, 320, 480]) {

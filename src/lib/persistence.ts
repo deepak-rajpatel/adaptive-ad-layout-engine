@@ -1,5 +1,11 @@
 import { insets, validateSurface, type Surface } from "../engine/surfaces";
-import { validateCreative, type Creative } from "./creative";
+import {
+  defaultRequired,
+  goals,
+  sample,
+  validateCreative,
+  type Creative,
+} from "./creative";
 export interface SavedCreative {
   id: string;
   name: string;
@@ -30,8 +36,12 @@ export function readLocal<T>(key: string, fallback: T): T {
 export function writeLocal(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
-/** Current project schema. Version 1 (or none, with legacy surface fields) is migrated. */
-export const schemaVersion = 2;
+/** Current project schema. Version 1 (or none, with legacy surface fields) and version 2
+ * (with `price`) are migrated. Library rows carry no version, so the v3 upgrade is keyed on
+ * the creative's shape and is idempotent. */
+export const schemaVersion = 3;
+/** Planner fields saved separately before schema 3. Merged once, then retired. */
+export const plannerSettingsKey = "omniframe:planner:v1";
 export function readLibrary(): { items: SavedCreative[]; skipped: number } {
   const value = readLocal<unknown>(libraryKey, []);
   if (!Array.isArray(value)) return { items: [], skipped: 0 };
@@ -98,6 +108,39 @@ export function upgradeSurface(value: unknown): unknown {
   };
 }
 
+/**
+ * Schema 3: `price` becomes `offer` (value and priority, never truncated), required flags
+ * become explicit (the old model always required headline and CTA), goal priorities stay off
+ * so layouts are unchanged, and new fields get defaults. Creatives already in schema-3 shape
+ * only get missing fields filled.
+ */
+export function upgradeToV3(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value;
+  const c = value as Record<string, unknown>;
+  const defaults = {
+    campaignType: sample.campaignType,
+    destination: "",
+    body: "",
+    longHeadline: "",
+    description: "",
+    focalOverrides: {},
+    goal: sample.goal,
+  };
+  if (!("price" in c) || "offer" in c)
+    return { ...defaults, useGoalPriorities: true, required: defaultRequired, ...c };
+  const { price, ...rest } = c;
+  const p = (c.priorities ?? {}) as Record<string, unknown>;
+  const { price: pricePriority, ...priorities } = p;
+  return {
+    ...defaults,
+    ...rest,
+    offer: price,
+    priorities: typeof c.priorities === "object" && c.priorities ? { ...priorities, offer: pricePriority } : c.priorities,
+    required: defaultRequired,
+    useGoalPriorities: false,
+  };
+}
+
 export function parseProject(value: unknown): {
   creative: Creative;
   surface: Surface;
@@ -105,12 +148,12 @@ export function parseProject(value: unknown): {
   if (!value || typeof value !== "object")
     throw new Error("Invalid project file.");
   const raw = value as { version?: unknown; creative: unknown; surface: unknown };
-  const current = typeof raw.version === "number" && raw.version >= schemaVersion;
+  const current = typeof raw.version === "number" && raw.version >= 2;
   const legacy = !current && (raw.version === 1 || isLegacySurface(raw.surface));
   const data = current
-    ? { creative: raw.creative as Creative, surface: raw.surface as Surface }
+    ? { creative: upgradeToV3(raw.creative) as Creative, surface: raw.surface as Surface }
     : {
-        creative: upgradeCreative(raw.creative, legacy) as Creative,
+        creative: upgradeToV3(upgradeCreative(raw.creative, legacy)) as Creative,
         surface: upgradeSurface(raw.surface) as Surface,
       };
   const errors = [
@@ -125,6 +168,34 @@ export function parseProject(value: unknown): {
   const creative = { ...data.creative };
   if (creative.image === "/headphones.png") creative.image = "/headphones.jpg";
   return { creative, surface };
+}
+/** Fills planner fields from the pre-schema-3 settings key, if it is still present. */
+export function mergeLegacyPlannerSettings(creative: Creative): Creative {
+  const v = readLocal<unknown>(plannerSettingsKey, null);
+  if (!v || typeof v !== "object") return creative;
+  const s = v as Record<string, unknown>;
+  return {
+    ...creative,
+    goal: goals.includes(s.goal as Creative["goal"]) ? (s.goal as Creative["goal"]) : creative.goal,
+    destination: typeof s.destination === "string" ? s.destination : creative.destination,
+    body: typeof s.body === "string" ? s.body : creative.body,
+  };
+}
+/**
+ * Deletes the old planner key only after the schema-3 draft has been written and reads back
+ * successfully; on any failure the key is kept and the merge is retried on the next load.
+ */
+export function retireLegacyPlannerSettings(): boolean {
+  try {
+    if (localStorage.getItem(plannerSettingsKey) === null) return false;
+    const saved = JSON.parse(localStorage.getItem(draftKey) ?? "null");
+    if (saved?.version !== schemaVersion) return false;
+    parseProject(saved);
+    localStorage.removeItem(plannerSettingsKey);
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function download(blob: Blob, name: string) {
   const a = document.createElement("a");

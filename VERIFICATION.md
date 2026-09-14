@@ -2,6 +2,36 @@
 
 Updated 14 September 2026, after the brief-aligned engine rework. Windows 11, Node.js 24.12.0.
 
+## Planner rework, steps 1–2 (14 September 2026)
+
+Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/DECISIONS.md). Windows 11, Node.js 24.12.0, Microsoft Edge (headless) against the Vite dev server.
+
+**Baseline before changes:** `npm run build` passed; `npm test` 41/41 passed. Committed as the restore point.
+
+**Step 1: uploaded video removed**
+- `npm run build` passed.
+- `npm test` 41/41 passed (the video test was replaced by an "image placements only" test).
+- Geometry harness (`verify.html`): 25 presets, 0 problems.
+
+**Step 2: module moves + schema 3 migration**
+- `npm run build` passed.
+- `npm test` 50/50 passed across 7 files.
+- Geometry harness: 25 presets, 0 problems. Assignment surfaces unchanged: portrait stack, landscape gallery, broadcast strip, kiosk gallery; all `ready`, nothing omitted.
+- **Identical-layout check (C2):** before any step-2 change, layouts for the sample and a stress variant (long offer, reordered priorities; includes `adapted` results) were captured on the four assignment surfaces into `tests/fixtures/v2-golden.json`, using the deterministic width stub. After migration, the schema-2 projects resolve to identical layouts on all four surfaces.
+- **Migration tests:**
+  - `price` → `offer`, with its priority, not truncated (60-character offer kept);
+  - required flags become explicit (headline + CTA);
+  - migrated projects get `useGoalPriorities: false`;
+  - v1 and legacy projects reach schema 3;
+  - schema-3 projects and version-less schema-3 library rows are not rewritten.
+- **Old planner key:** merged into the creative; deleted only after the schema-3 draft reads back; kept when the draft is missing or unreadable.
+- **Engine purity:** no file under `src/engine/` imports from outside the engine or uses DOM globals.
+- **Manual smoke check (headless Edge):**
+  - the planner page renders all 8 placement rows;
+  - `?surface=kiosk` renders the studio artboards, including the offer element;
+  - the editor shows the "Offer" field.
+- **Not checked in a browser:** opening a real, previously saved v2 draft from browser storage. The unit tests cover parsing and identical layouts; the headless run starts with empty storage.
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

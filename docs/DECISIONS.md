@@ -412,7 +412,11 @@ Each placement plan carries separate fields.
 ## 21. Open items
 
 - [x] Append Addendum E to `planner-spec.md`.
-- [ ] Commit the current project state before step 1 as a restore point.
+- [x] Commit the current project state before step 1 as a restore point.
+- [x] Step 1: uploaded video removed.
+- [x] Step 2: module moves + schema 3 migration. Results in `VERIFICATION.md`.
+  - **Implementation note:** the offer keeps the internal element id `price`, so resolved layouts, explanations and renderer class names stay identical for old projects. Only the data field and UI label changed.
+  - **Blank optional fields** are still sent to the resolver as before. Leaving them out (E2) is part of step 6, so step 2 changes no behaviour.
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.

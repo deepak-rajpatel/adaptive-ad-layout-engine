@@ -47,7 +47,9 @@ import {
   download,
   draftKey,
   imageData,
+  mergeLegacyPlannerSettings,
   parseProject,
+  retireLegacyPlannerSettings,
   readLibrary,
   readLocal,
   schemaVersion,
@@ -72,6 +74,7 @@ function initialDraft() {
   } catch {
     draft = { creative: sample, surface: surfaces[3] };
   }
+  draft = { ...draft, creative: mergeLegacyPlannerSettings(draft.creative) };
   // Shareable review links: ?surface=kiosk&height=420 opens that preset directly.
   const params = new URLSearchParams(window.location.search);
   const preset = surfaces.find((s) => s.id === params.get("surface"));
@@ -97,10 +100,10 @@ const setupMissing = (code?: string) => code === "PGRST205" || code === "42P01";
 const setupMessage =
   "Cloud library is not set up on this deployment yet: its database tables are missing. Local saving works. The project owner must run the Supabase migrations listed in the README.";
 const kioskPreset = surfaces.find((s) => s.id === "kiosk")!;
-const priorityLabels: Record<"brand" | "image" | "price", string> = {
+const priorityLabels: Record<"brand" | "image" | "offer", string> = {
   brand: "Branding",
   image: "Product image",
-  price: "Offer / price",
+  offer: "Offer",
 };
 
 export default function App() {
@@ -205,6 +208,7 @@ export default function App() {
     const timer = setTimeout(() => {
       try {
         writeLocal(draftKey, { version: schemaVersion, creative, surface });
+        retireLegacyPlannerSettings();
         setDraftStatus("Draft saved locally");
       } catch {
         setDraftStatus("Storage full — export JSON to keep your work");
@@ -759,12 +763,12 @@ export default function App() {
                   A single source for every placement.
                 </p>
                 <div className="editor-fields">
-                  {(["brand", "headline", "price", "cta"] as const).map(
+                  {(["brand", "headline", "offer", "cta"] as const).map(
                     (key) => (
                       <label className="field" key={key}>
                         <span>
-                          {key === "price"
-                            ? "Offer / price"
+                          {key === "offer"
+                            ? "Offer"
                             : key === "cta"
                               ? "Call to action"
                               : key}
@@ -880,7 +884,7 @@ export default function App() {
                     Headline (priority {creative.priorities.headline}) and CTA
                     (priority {creative.priorities.cta}) are required.
                   </p>
-                  {(["brand", "image", "price"] as const).map((id) => (
+                  {(["brand", "image", "offer"] as const).map((id) => (
                     <label className="range-field" key={id}>
                       <span>
                         {priorityLabels[id]}{" "}
