@@ -439,6 +439,9 @@ Each placement plan carries separate fields.
   - **Image assets are never enlarged.** They export at the recommended size, or at the source crop's own size when that is smaller.
   - **Known limitation:** Google's 150 KB limit for uploaded banners is shown as a note but not checked. Two sample banners exceed it (300 × 600, 300 × 1050).
   - **Verification page:** `verify-export.html` renders every export in a real browser and checks its PNG size (27/27 match).
+- [x] Step 9: Playwright planner checks (`npm run test:e2e`, 5/5 in Edge) and docs (README, ARCHITECTURE, CREATIVE_FIRST).
+- [ ] **Your review:** open the planner, try the four "things to try" in the README, and check the steps listed as not browser-checked in `VERIFICATION.md` (slider dragging, Remove/Undo image, saving many files at once).
+- [ ] **Later (only after your review):** animation, then upscaling (§18); verify TikTok specs; verify network CTA lists; an automatic 150 KB banner check.
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.

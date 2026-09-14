@@ -117,6 +117,17 @@ Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/
 - **Not checked in a browser:** clicking the export buttons and the browser actually saving the files (the headless check cannot interact). The app's `toBlob` encoding path was not run headlessly. The stall seen with it happened in a run that also used async image decoding, so it was never isolated.
 - Geometry harness: 25 presets, 0 problems.
 
+**Step 9: Playwright planner checks and docs**
+- `npm run test:e2e`: strict `tsc -b`, production build, then Playwright 1.63.0 in the installed Microsoft Edge against `vite preview`. **5/5 passed:**
+  - the unfiltered Network view renders one card per catalog placement (27), all ids unique and equal to the catalog;
+  - Goal grouping covers every placement id; the "Assignment surfaces" section holds exactly the four assignment ids, and they appear in no goal section;
+  - the Meta chip shows exactly Meta's placements;
+  - switching the goal to Sales keeps the same id set and count;
+  - clicking a card's PNG button downloads `google-300x250-300x250.png`, and the Meta feed "Image asset" button downloads `meta-feed-…-image-asset.png`. **This runs the app's real `toBlob` export path,** which the headless page check could not.
+- `npm test` 79/79 passed; Vitest excludes `tests/e2e`.
+- Geometry harness: 25 presets, 0 problems.
+- Docs updated: README (planner summary, a fourth thing to try, commands, limitations, AI use), ARCHITECTURE (new modules and a planner section), `docs/CREATIVE_FIRST.md` (rewritten for the current planner).
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

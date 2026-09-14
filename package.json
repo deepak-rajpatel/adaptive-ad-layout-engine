@@ -10,7 +10,8 @@
     "test": "node node_modules/vitest/vitest.mjs run",
     "test:watch": "node node_modules/vitest/vitest.mjs",
     "format": "node node_modules/prettier/bin/prettier.cjs --write src tests *.md *.json vite.config.ts design/README.md",
-    "benchmark": "node node_modules/vitest/vitest.mjs bench --run"
+    "benchmark": "node node_modules/vitest/vitest.mjs bench --run",
+    "test:e2e": "node node_modules/typescript/bin/tsc -b && node node_modules/vite/bin/vite.js build && node node_modules/@playwright/test/cli.js test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.4",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

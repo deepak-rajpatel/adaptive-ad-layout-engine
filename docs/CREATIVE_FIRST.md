@@ -1,49 +1,54 @@
-# Creative-first product update
+# Creative-first planner
 
-The assignment's constraint solver remains the composition engine. A new planning layer starts with the source asset and makes the distinction between a physical canvas, an ad format and a campaign strategy visible.
+The assignment's constraint solver stays the composition engine. The planner starts from one creative and shows every place it can run. It keeps three things apart: the network's objective, the ad format, and the physical canvas.
 
-## Implemented workflow
+Specification: [planner-spec.md](planner-spec.md). Decisions and progress: [DECISIONS.md](DECISIONS.md). Sources for every size and limit: [catalog-verification.md](catalog-verification.md).
 
-1. Upload PNG, JPEG, WebP, MP4 or WebM (image limit 10 MB; video limit 100 MB). Images retain their original dimensions in this workflow. Browser decoding reads media type, width, height and video duration. Unsupported or unreadable files show an error.
-2. Edit the shared brand/headline, primary text, destination and goal. Goals suggest a CTA; they do not imply that bidding or platform objectives have been configured.
-3. Inspect 11 explicit profiles spanning five networks and six container families. Filter by network or status, and expand individual reasons. Matching geometry does not complete multi-asset or carousel requirements.
-4. Select up to three illustrative previews. Media crops independently from the surrounding headline/CTA. Focal sliders change the crop; vertical guides highlight approximate areas for manual review.
-5. Export the planning report as JSON, including dimensions, crop retention, reasons, source links, selected profiles and strategy. Media files are not embedded in this report.
-6. Open an image profile in the existing layout studio. Its dimensions and safe margins become a Surface, and the existing resolver, DOM/Canvas renderers and PNG export handle a composed concept. Native submission still uses separate media/copy.
+## Workflow
 
-## Four layers
+1. **Image and copy.** Upload a PNG, JPEG or WebP (optional; original dimensions are kept). Fill in brand, headline, long headline, description, primary text, offer and CTA, and pick a campaign type. Required elements are user-controlled; headline and CTA are required by default.
+2. **Every placement is generated.** 27 verified placements: Meta (feed, Stories, right column, carousel card), Google (responsive display, Performance Max, Demand Gen, 13 uploaded banners), Taboola, LinkedIn (single image, carousel card), and the four assignment surfaces. Setup-only formats are listed behind a toggle with the reason each can't be built.
+3. **Explore.**
+   - The goal re-ranks placements and badges the ones that suit it. With "Goal sets element priorities" on, it also changes element priorities, so composed layouts recompose.
+   - Group by network, goal, size or status; filter with the network and status chips.
+   - None of these change what is generated.
+4. **Check each card.**
+   - fit (`Ready`, `Needs crop`, `Needs image`, `Text only`, `Unsupported`);
+   - layout status for composed placements;
+   - the chosen size and share of the image kept;
+   - copy-length and destination issues;
+   - notes and the official source.
+5. **Fix crops.** "Adjust crop" sets a focus point for that placement only. Cards that need a crop show the whole image with the kept area outlined. The planner recommends the smallest upload that meets every crop's minimum.
+6. **Export.**
+   - PNGs for the selected cards (or all of them): composed creatives at surface size, and platform images as image assets that are never enlarged beyond the source;
+   - a JSON report of every placement;
+   - or open any placement in the layout studio with its own constraints.
 
-| Layer     | Implementation                                      | Responsibility                                                                                |
-| --------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Asset     | `src/lib/assetInfo.ts`                              | Decode image/video metadata with errors and timeout                                           |
-| Container | `Placement.container` in `src/engine/placements.ts` | In-feed, vertical, recommendation, carousel, multi-asset, display                             |
-| Placement | `assessPlacement`                                   | Media-kind compatibility, crop loss, target resolution, required fields and additional assets |
-| Strategy  | `CreativePlanner` goal and copy fields              | Destination, headline, body and suggested CTA                                                 |
+## Layers
 
-The placement engine is pure TypeScript and independent of React and the layout solver. Profile dimensions are explicit planning targets, not a complete account of accepted network ratios or delivery rules. “Unsupported” means the supplied media kind cannot fill this particular profile.
+| Layer | Implementation | Responsibility |
+| --- | --- | --- |
+| Creative | `src/engine/creativeModel.ts` | Copy, offer, image, priorities, required flags, goal settings; `toSpec()` |
+| Catalog | `src/engine/catalog/data.ts` | Networks, objectives, formats, placements, surface templates (verified data) |
+| Planning | `src/engine/catalog/plan.ts` | Size selection, fit, layout status, issues, upload recommendation, export planning |
+| Layout | `src/engine/resolver.ts` | Unchanged; resolves composed placements like any other surface |
+| UI and export | `src/components/CreativePlanner.tsx`, `src/lib/exporter.ts` | Matrix, cards, crop tools, PNG rendering |
 
-## Persistence and boundaries
+The planning layer is pure TypeScript. A test enforces that nothing under `src/engine/` imports React, the DOM or app code.
 
-- Brand, headline, focal position and image participate in the existing creative draft/version workflow. Large original images may exceed browser storage; the existing draft-status message reports this, and studio JSON export can preserve the creative.
-- Goal, destination and body save separately as one workspace brief. Named creative versions and cloud rows do not yet contain these fields. The exported planning report preserves them.
-- Video uses an object URL and stays available while switching between app views. Reloading ends the video session. Frame rate, codec, audio and video transcoding are not implemented.
-- Safe-zone overlays are illustrative. No OCR or automatic detection of embedded-text collisions is claimed. Copy checks cover the Google short headline field and a 125-character feed-preview guideline; this is not a comprehensive network policy linter.
-- Carousel and responsive display entries explicitly request their additional assets. They are not complete multi-asset editors. Text-only search, HTML5, catalogs, forms, messaging and ad account publishing remain outside the implemented workflow.
-- Network API connections, campaign creation, bidding and delivery analytics require a separate integration layer. No ads are published by this app.
+## Boundaries
 
-## Reference guidance
-
-Reviewed 14 September 2026. Profile source links are available in the UI and exported plan.
-
-- [Google responsive display](https://support.google.com/google-ads/answer/7005917): independently supplied images and text; short and long headlines have distinct limits.
-- [YouTube Shorts](https://support.google.com/google-ads/answer/16041697): vertical video recommendations and campaign-specific behavior. This planner models a video profile; it does not rule out image eligibility in other campaign formats.
-- [LinkedIn single-image specifications](https://www.linkedin.com/help/linkedin/answer/a426534): format-specific image guidance.
-- [Taboola thumbnails](https://developers.taboola.com/backstage-api/docs/item-thumbnail_url): 1000 × 600 or larger for broad placement coverage; publisher crops vary.
-- [TikTok in-feed](https://ads.tiktok.com/help/article/tiktok-auction-in-feed-ads): video profile requirements.
-- [Meta Ads Guide](https://www.facebook.com/business/ads-guide): placement-specific requirements; generic social ratios are not universal eligibility rules.
+- **Planning checks, not approval.** File weight, policies, account eligibility and bidding are reviewed in each network.
+- **Copy-length checks are advisory.** No network publishes how it counts characters, so the planner counts Unicode code points and labels the count "counted by the planner".
+- **Objective mapping is an assumption.** The goal → objective mapping and which formats serve which objective are our interpretation.
+- **Not included:**
+  - video (out of scope);
+  - animation and AI upscaling (designed, deferred);
+  - TikTok (unverified);
+  - catalog/feed, lead-form and messaging formats (setup-only);
+  - network APIs and publishing.
+- **The report is not a backup.** It contains no image. The project JSON export from the studio embeds the image.
 
 ## Verification
 
-The added unit suite checks valid destinations, unreadable dimensions, image/video incompatibility, crop loss and post-crop resolution, multi-asset requirements, short headline overflow, blank copy and unknown video duration. Existing layout, persistence, type and database-policy tests remain part of the validation run.
-
-Validation on 14 September 2026: production build passed; all 41 tests across five files passed. Browser checks covered the 390px mobile view, goal/CTA changes, network and status filters including an empty result, image upload retaining 1254 × 1254 pixels, a generated 1080 × 1920 one-second MP4, and image-profile handoff to the layout studio. The in-app browser did not report a download event for the JSON export; actual file delivery remains unverified in that browser.
+See [VERIFICATION.md](../VERIFICATION.md) for recorded results: unit tests, the geometry harness, the export check (`verify-export.html`) and the Playwright planner checks (`npm run test:e2e`).

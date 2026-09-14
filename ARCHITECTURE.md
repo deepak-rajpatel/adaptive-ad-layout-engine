@@ -32,8 +32,12 @@ AdSpec (defineAd)  +  Surface (defineSurface)  +  Measure (injected)
 | `src/engine/layout.ts` | `ResolvedLayout` output contract consumed by renderers | `spec.ts` types |
 | `src/render/dom.ts` | Framework-free DOM renderer | `layout.ts` |
 | `src/render/canvas.ts` | Canvas 2D renderer and PNG export source | `layout.ts` |
-| `src/lib/creative.ts` | Editor content model and `toSpec()` conversion into an `AdSpec` | `spec.ts` |
-| `src/lib/data.ts` | Surface presets as plain data (required four, stress, IAB, social, custom) | `surfaces.ts` |
+| `src/engine/creativeModel.ts` | Creative data model (schema 3), goal priorities, `toSpec()` into an `AdSpec` | `spec.ts`, `placements.ts` |
+| `src/engine/crop.ts` | Cover-crop math shared by the Canvas renderer and the planner | nothing |
+| `src/engine/catalog/*` | Verified placement catalog, the four assignment surfaces, `planAll()`, upload and export planning | engine modules |
+| `src/lib/creative.ts` | Re-exports the creative model for app code | `creativeModel.ts` |
+| `src/lib/data.ts` | Studio surface presets as plain data (assignment four, stress, IAB, social, custom) | `surfaces.ts`, `catalog/assignmentSurfaces.ts` |
+| `src/lib/exporter.ts` | Browser PNG rendering of planner exports | `catalog/plan.ts`, `render/canvas.ts` |
 | `src/lib/measure.ts` | Browser adapter: Canvas `measureText` with the renderers' font stack | `text.ts` |
 | `src/lib/persistence.ts` | Local storage, JSON import/export, upgrade of pre-brief saved data | `creative.ts`, `surfaces.ts` |
 | `src/App.tsx`, `src/components/*` | Editor, inspector, library, auth, cloud UI | everything above |
@@ -121,6 +125,39 @@ DOM and Canvas consume the same `ResolvedLayout`: identical boxes, lines, font s
 Guest drafts and saved versions live in localStorage. `parseProject` validates and upgrades anything read back: projects saved before the brief-aligned model (1–100 priorities where higher meant more important, a single `safe` inset, `minFont` / `minTarget`) are converted, and the old `forma:` storage keys are still read.
 
 Supabase provides email auth. The `creatives` table and the private `creative-assets` bucket are owner-scoped by row-level and storage policies (select, insert, update, delete); `tests/database.test.ts` runs the real migration SQL against PGlite with two synthetic users. When the deployment's tables or bucket are missing, the app detects PostgREST `PGRST205` or the storage error, disables cloud save and upload, and says so, instead of failing silently.
+
+## Placement planner
+
+```text
+Goal → Network objective → Format → Placement (surface + copy fields) → ResolvedLayout
+```
+
+The catalog (`src/engine/catalog/data.ts`) is data only. Every value comes from `docs/catalog-verification.md`.
+- **Formats** list the objectives they serve.
+- **Setup-only formats** (catalogs, lead forms, Masthead, TikTok until verified) carry a reason and generate nothing.
+- **Placements** hold one or more accepted sizes (ratio, recommended, minimum, tolerance), copy fields with limits, and a source-image requirement (`media`).
+- **Composed placements** also carry a surface template, a `Surface` without identity or size that keeps the input/tap-target union.
+
+`planAll()` plans every placement from one creative. Status is evaluated in a fixed order:
+1. setup-only;
+2. `media: "none"`;
+3. no image (`Needs image` or `Text only`);
+4. the size-selection algorithm below.
+
+**Size selection is feasibility first:**
+- **Platform-assembled placements** crop the source to each accepted ratio at the focal point.
+- **Composed placements** resolve a surface per accepted size, then crop the source to the resolved image box, using the same `coverCrop` the Canvas renderer uses. The minimum is scaled to that box on both dimensions.
+- Candidates that meet their minimum are ranked: image kept before image omitted, `ready` before `adapted`, then higher retained area, larger recommended size, and catalog order.
+- `Unsupported` only when no candidate is feasible. The issue then states the source size needed.
+
+**Separate results per plan:**
+- `fit` (source image only) and `layoutStatus` (composed only);
+- copy and destination `issues` (never changing fit);
+- information-only `notes`;
+- `minimumScale`, which drives the "upload at least W×H" recommendation;
+- `pngExport`, which says whether a PNG can be exported and why not.
+
+The goal only changes ranking, badges and (when switched on) element priorities in `toSpec`. The resolver never sees a network or placement name.
 
 ## Tradeoffs
 

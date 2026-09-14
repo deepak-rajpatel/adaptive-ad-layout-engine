@@ -1,8 +1,12 @@
 # Omniframe — Adaptive Ad Layout Engine
 
-The product now opens in a **Creative planner**: upload an original image, inspect its dimensions, compare 8 planning profiles across Meta, Google, Taboola, LinkedIn and TikTok, and review illustrative native previews. Add a campaign goal, copy and destination, inspect crop loss and missing inputs, export a JSON placement plan, or send an image profile into the constraint-driven layout studio. Existing `?surface=...` links still open the studio directly.
+The product opens in a **Creative planner**. One set of copy, plus an optional image, generates every verified placement: 27 across Meta, Google (including 13 display banners), Taboola, LinkedIn and the four assignment surfaces.
+- **Nothing is hidden.** The goal, network and status controls only re-rank, group and filter.
+- **Composed placements** (banners, Stories, assignment surfaces) run through the same layout engine.
+- **Platform-assembled placements** (feeds, Taboola, LinkedIn) get a checked crop and copy-length checks.
+- **Export** PNGs or a JSON report, or open any placement in the layout studio. Existing `?surface=...` links still open the studio directly.
 
-Planner fields save locally as a workspace brief. They are not attached to named creative versions or synced to Supabase. Original planner image dimensions are preserved. Video placements are out of scope; the engine composes static creatives. Compatibility is a planning check, not approval to launch. See [the creative-first architecture and remaining scope](docs/CREATIVE_FIRST.md).
+Planner fields are part of the saved project (schema 3). Every size and limit comes from an official source recorded in [docs/catalog-verification.md](docs/catalog-verification.md). TikTok is listed but not buildable until its specs are verified. Video is out of scope; the engine composes static creatives. Results are planning checks, not network approval. Background and decisions: [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/CREATIVE_FIRST.md](docs/CREATIVE_FIRST.md).
 
 [Live studio](https://adaptive-ad-layout-engine.vercel.app/) · [Source](https://github.com/deepak-rajpatel/adaptive-ad-layout-engine) · [Architecture](ARCHITECTURE.md) · [Verification](VERIFICATION.md)
 
@@ -19,6 +23,7 @@ One declarative ad spec, resolved by a TypeScript constraint engine into genuine
 1. **Edit the headline.** Every surface preview re-resolves from the same spec.
 2. **Run the degradation demo** in the inspector (or open [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520)). Drag the kiosk height down. From 1080 to about 540 px the engine only **repositions** everything at full size (gallery → split → strip). At 520 px **branding (priority 3)** shrinks to its 24 px minimum first; then price and CTA (priority 2), then the headline (priority 1). Around 180 px branding and price drop out cleanly while the headline and CTA stay intact; at 140 px the result is reported impossible. **Why each element is here** explains every box.
 3. **Describe an unseen surface.** Pick *Custom surface* and set any dimensions, per-surface text minimum, viewing distance, input type, and tap target. The same resolver handles it with no code change. 18 IAB and social sizes are included as further examples.
+4. **Plan every placement.** In the planner, set Goal to *Sales* and tick *Goal sets element priorities*. Every composed banner recomposes with the offer promoted, and Sales placements move to the top of each group. Then click *Remove image* to see which placements still work as text only.
 
 ## Run locally
 
@@ -30,9 +35,10 @@ npm run dev        # http://127.0.0.1:5173
 npm test           # unit, type-level, persistence, and database-policy tests
 npm run build      # strict tsc -b + production build
 npm run benchmark  # resolver timing (Vitest bench)
+npm run test:e2e   # production build + Playwright planner checks (uses installed Microsoft Edge)
 ```
 
-Open `http://127.0.0.1:5173/verify.html` with the dev server running to re-run the real-browser layout verification.
+With the dev server running, open `http://127.0.0.1:5173/verify.html` to re-run the real-browser layout verification, and `http://127.0.0.1:5173/verify-export.html` to render every planner export and check each PNG's size.
 
 Switch surfaces with the **Surface / placement** menu, the four preview cards, or a URL such as `?surface=broadcast`. The studio works without any Supabase configuration. Scripts call Node entry points directly because Windows command shims break when a parent folder contains `&`.
 
@@ -54,7 +60,7 @@ export const ad = defineAd({
 });
 ```
 
-Priorities follow the brief: **1 is most important**. The editor builds exactly this spec from its form fields (`src/lib/creative.ts`).
+Priorities follow the brief: **1 is most important**. The editor builds exactly this spec from its form fields (`toSpec` in `src/engine/creativeModel.ts`). The form calls the secondary text "Offer". It keeps the element id `price`, so layouts saved before the rename resolve identically.
 
 ## Surfaces
 
@@ -149,6 +155,12 @@ Row-level security limits every creative to `auth.uid() = user_id`; storage poli
 - Resolution cost is about 1–2 ms per surface in Node with a stub measurer; the studio resolves five surfaces per edit.
 - Browser verification ran on Chromium-based Edge only.
 - External HTTPS images may block PNG export through CORS; upload the image instead.
+- **Planner:**
+  - TikTok formats are listed but not buildable, because its documentation could not be reached to verify specs.
+  - Which formats serve which objective is a planning assumption, not a network rule.
+  - Google's 150 KB limit for uploaded banners is shown as a note, not checked; two sample banners exceed it.
+  - Batch export downloads files one at a time (no zip).
+  - Network CTA button lists are not verified, so CTAs are not checked per network.
 
 ## Time spent
 
@@ -161,6 +173,7 @@ Recorded timestamps, all 14 September 2026 (IST):
 | 03:18 – 05:40 | First implementation session (Codex), committed at 05:40 |
 | 11:17 | Image-delivery optimization committed |
 | ≈ 11:35 – 12:45 | Review, brief alignment, engine rework, presets, verification, and docs (Claude Code) |
+| Afternoon | Creative-first planner, steps 1–9 of `docs/planner-spec.md` (Claude Code); per-step commit times are in `git log` |
 
 That is roughly 11½ hours of calendar time with gaps, including an interruption between about 03:18 and 05:20. Active hands-on time was not tracked with a timer, so **the author should replace this line with their own estimate** before submission.
 
@@ -169,7 +182,9 @@ That is roughly 11½ hours of calendar time with gaps, including an interruption
 - **Codex** helped with the initial architecture, implementation, tests, and documentation; its built-in image generator created the sample headphone image and the design reference ([design/README.md](design/README.md)).
 - **Claude Code** reviewed the implementation against the brief and did the brief-alignment rework: the typed `defineAd` spec and priority semantics, the degradation ladder, the brief's surface constraints, the kiosk demo, separated renderers, per-element explanations, the IAB and social presets, browser verification, and these docs.
 
-The author reviewed the work and is responsible for explaining it.
+- **Claude Code** also implemented the creative-first planner from `docs/planner-spec.md`: removing video, the schema-3 migration, catalog verification against official sources, the planning engine, the planner UI, export, and the Playwright checks. Each step is a separate commit for the author to review.
+
+The author is responsible for reviewing and explaining the work.
 
 ## Sources
 
