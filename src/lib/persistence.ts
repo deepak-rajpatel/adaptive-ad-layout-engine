@@ -125,6 +125,10 @@ export function upgradeToV3(value: unknown): unknown {
     description: "",
     focalOverrides: {},
     goal: sample.goal,
+    // Appearance fields (added without a schema bump): defaults reproduce the original button.
+    buttonText: "",
+    buttonSize: "medium",
+    buttonRadius: 8,
   };
   if (!("price" in c) || "offer" in c)
     return { ...defaults, useGoalPriorities: true, required: defaultRequired, ...c };

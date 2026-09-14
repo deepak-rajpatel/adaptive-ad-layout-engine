@@ -32,11 +32,26 @@ export type ElementSpec = { [R in Role]: ElementFor<R> }[Role];
 export interface AdTheme {
   background: HexColor;
   foreground: HexColor;
+  /** Button fill. */
   accent: HexColor;
+  /** Button label color. Omitted: automatic (white or near-black, whichever reads better on the fill). */
+  buttonText?: HexColor;
+}
+export type ButtonSize = "small" | "medium" | "large";
+export const buttonSizes: readonly ButtonSize[] = ["small", "medium", "large"];
+/**
+ * Button styling intent. The size preset scales the CTA's preferred text and padding; the
+ * surface's minimum text size and tap target still apply. Omitted: medium with 8 px corners.
+ */
+export interface ButtonStyle {
+  size: ButtonSize;
+  /** Corner radius in px; the resolver caps it at a pill (half the button's shorter side). */
+  radius: number;
 }
 export interface AdSpec<E extends readonly ElementSpec[] = readonly ElementSpec[]> {
   elements: E;
   theme: AdTheme;
+  button?: ButtonStyle;
   /** Image focal point in percent, used for cover cropping. */
   focal: { x: number; y: number };
 }
@@ -110,6 +125,15 @@ export function validateSpec(value: unknown): string[] {
   for (const key of ["background", "foreground", "accent"] as const)
     if (!/^#[\da-f]{6}$/i.test(spec.theme?.[key] ?? ""))
       errors.push(`Theme ${key} must be a six-digit hex color.`);
+  if (spec.theme?.buttonText !== undefined && !/^#[\da-f]{6}$/i.test(spec.theme.buttonText))
+    errors.push("Theme buttonText must be a six-digit hex color.");
+  if (spec.button !== undefined) {
+    if (!buttonSizes.includes(spec.button?.size))
+      errors.push('Button size must be "small", "medium" or "large".');
+    const r = spec.button?.radius;
+    if (typeof r !== "number" || !Number.isFinite(r) || r < 0 || r > 100)
+      errors.push("Button radius must be between 0 and 100 px.");
+  }
   for (const key of ["x", "y"] as const) {
     const v = spec.focal?.[key];
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100)

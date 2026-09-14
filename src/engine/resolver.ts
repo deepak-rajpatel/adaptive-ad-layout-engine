@@ -1,5 +1,12 @@
 // Constraint resolver: (AdSpec, Surface, Measure) -> ResolvedLayout. Pure TypeScript, no DOM.
-import { validateSpec, type AdSpec, type ElementSpec, type Role } from "./spec";
+import {
+  validateSpec,
+  type AdSpec,
+  type AdTheme,
+  type ButtonSize,
+  type ElementSpec,
+  type Role,
+} from "./spec";
 import { safeBox, tapTarget, validateSurface, type Surface } from "./surfaces";
 import { contrast, textOn } from "./contrast";
 import { truncateLine, wrap, type Measure } from "./text";
@@ -39,6 +46,17 @@ const shares: Record<Arrangement, number[]> = {
   strip: [0.3, 0.4, 0.25],
 };
 const shrinkSteps = [0.8, 0.62];
+/**
+ * Button size presets: CTA text scale and label padding (horizontal total, vertical total).
+ * Medium is the original behaviour. Minimum text size and tap target still apply on top.
+ */
+const buttonPresets: Record<ButtonSize, { em: number; padX: number; padY: number }> = {
+  small: { em: 0.8, padX: 32, padY: 12 },
+  medium: { em: 1, padX: 48, padY: 20 },
+  large: { em: 1.25, padX: 64, padY: 28 },
+};
+const buttonPreset = (spec: AdSpec) => buttonPresets[spec.button?.size ?? "medium"];
+export const buttonTextColor = (theme: AdTheme) => theme.buttonText ?? textOn(theme.accent);
 
 interface Plan {
   scale: Map<string, number>;
@@ -99,12 +117,13 @@ export function sizePlans(active: readonly ElementSpec[]): Plan[] {
 
 function fitText(ctx: Context, plan: Plan, el: ElementSpec, width: number): Placed | null {
   const role = el.role as TextRole;
-  const preferred = ctx.unit * preferredEm[role];
+  const isButton = role === "action";
+  const preset = buttonPreset(ctx.spec);
+  const preferred = ctx.unit * preferredEm[role] * (isButton ? preset.em : 1);
   const fontSize =
     Math.round(Math.max(ctx.s.minTextSize, preferred * (plan.scale.get(el.id) ?? 1)) * 10) / 10;
   const weight = fontWeightFor(role);
-  const isButton = role === "action";
-  const inner = width - (isButton ? 24 : 0);
+  const inner = width - (isButton ? preset.padX / 2 : 0);
   if (inner <= 0) return null;
   let lines = wrap(el.content, inner, fontSize, weight, ctx.measure, {
     hyphenate: role === "primary" || role === "secondary",
@@ -124,9 +143,9 @@ function fitText(ctx: Context, plan: Plan, el: ElementSpec, width: number): Plac
     slot: "",
     x: 0,
     y: 0,
-    width: isButton ? Math.min(width, Math.max(ctx.target, Math.ceil(widest) + 48)) : width,
+    width: isButton ? Math.min(width, Math.max(ctx.target, Math.ceil(widest) + preset.padX)) : width,
     height: isButton
-      ? Math.max(ctx.target, lines.length * lineHeight + 20)
+      ? Math.max(ctx.target, lines.length * lineHeight + preset.padY)
       : lines.length * lineHeight,
     text: {
       lines,
@@ -281,15 +300,23 @@ function finish(ctx: Context, placed: Placed[], arrangement: Arrangement, planLa
     if (text.fontSize <= s.minTextSize + 0.01)
       explanation.push(`Held at the surface's ${s.minTextSize} px minimum text size.`);
     explanation.push(
-      `${text.lines.length} line${text.lines.length > 1 ? "s" : ""}, wrapped by measuring the text against a ${px(box.width - (el.role === "action" ? 24 : 0))} px width.`,
+      `${text.lines.length} line${text.lines.length > 1 ? "s" : ""}, wrapped by measuring the text against a ${px(box.width - (el.role === "action" ? buttonPreset(spec).padX / 2 : 0))} px width.`,
     );
     if (text.truncated)
       explanation.push("Truncated with an ellipsis: truncatable secondary text gives way before higher-priority content shrinks.");
     const isButton = el.role === "action";
-    if (isButton)
+    const radius = isButton
+      ? Math.min(spec.button?.radius ?? 8, box.height / 2, box.width / 2)
+      : 0;
+    if (isButton) {
       explanation.push(
         `${px(box.width)} × ${px(box.height)} px button sized to its label${target ? `, meeting the ${target} px minimum tap target` : " (non-interactive surface: no tap target)"}.`,
       );
+      // Default styling (medium, 8 px) keeps the original explanation text unchanged.
+      const size = spec.button?.size ?? "medium";
+      if (size !== "medium" || radius !== 8)
+        explanation.push(`${size[0].toUpperCase()}${size.slice(1)} button preset; ${px(radius)} px corners.`);
+    }
     return {
       ...box,
       kind: isButton ? "button" : "text",
@@ -301,9 +328,9 @@ function finish(ctx: Context, placed: Placed[], arrangement: Arrangement, planLa
       lineHeight: text.lineHeight,
       fontWeight: fontWeightFor(el.role),
       align: isButton ? "center" : "left",
-      color: isButton ? textOn(spec.theme.accent) : spec.theme.foreground,
+      color: isButton ? buttonTextColor(spec.theme) : spec.theme.foreground,
       fill: isButton ? spec.theme.accent : undefined,
-      radius: isButton ? 8 : 0,
+      radius,
       scale: text.scale,
       truncated: text.truncated,
       explanation,
@@ -338,7 +365,7 @@ export function resolve(spec: AdSpec, s: Surface, measure: Measure): ResolvedLay
   if (errors.length) return base;
   base.contrast = contrast(spec.theme.background, spec.theme.foreground);
   const hasAction = spec.elements.some((e) => e.role === "action");
-  const buttonContrast = contrast(spec.theme.accent, textOn(spec.theme.accent));
+  const buttonContrast = contrast(spec.theme.accent, buttonTextColor(spec.theme));
   if (base.contrast < s.minContrast || (hasAction && buttonContrast < s.minContrast))
     return {
       ...base,

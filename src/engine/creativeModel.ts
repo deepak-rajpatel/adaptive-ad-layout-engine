@@ -1,5 +1,13 @@
 // The editor's content model (plain data) and its conversion into a declarative AdSpec.
-import { validateSpec, type AdSpec, type ElementSpec, type HexColor, type Priority } from "./spec";
+import {
+  buttonSizes,
+  validateSpec,
+  type AdSpec,
+  type ButtonSize,
+  type ElementSpec,
+  type HexColor,
+  type Priority,
+} from "./spec";
 import type { Goal } from "./placements";
 
 export type CreativeKey = "brand" | "headline" | "image" | "offer" | "cta";
@@ -31,7 +39,13 @@ export interface CreativeData {
   image: string;
   background: string;
   foreground: string;
+  /** Button fill. */
   accent: string;
+  /** Button label color; "" = automatic (readable on the fill). */
+  buttonText: string;
+  buttonSize: ButtonSize;
+  /** Button corner rounding in px (0–40; the resolver caps it at a pill). */
+  buttonRadius: number;
   focalX: number;
   focalY: number;
   /** 1 is most important, matching the brief. */
@@ -121,6 +135,10 @@ export const sample: CreativeData = {
   background: "#f5f0e7",
   foreground: "#262d24",
   accent: "#c74620",
+  // Automatic label color, medium size and 8 px corners reproduce the original button exactly.
+  buttonText: "",
+  buttonSize: "medium",
+  buttonRadius: 8,
   focalX: 50,
   focalY: 50,
   priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
@@ -154,7 +172,9 @@ export function toSpec(c: CreativeData): AdSpec {
       background: c.background as HexColor,
       foreground: c.foreground as HexColor,
       accent: c.accent as HexColor,
+      ...(c.buttonText ? { buttonText: c.buttonText as HexColor } : {}),
     },
+    button: { size: c.buttonSize, radius: c.buttonRadius },
     focal: { x: c.focalX, y: c.focalY },
   };
 }
@@ -173,6 +193,11 @@ export function validateCreative(value: unknown): string[] {
   if (!goals.includes(c.goal)) errors.push("Goal must be Awareness, Consideration, Leads or Sales.");
   if (!campaignTypes.includes(c.campaignType)) errors.push("Unknown campaign type.");
   if (typeof c.useGoalPriorities !== "boolean") errors.push("Goal priorities setting must be true or false.");
+  if (!buttonSizes.includes(c.buttonSize)) errors.push("Button size must be Small, Medium or Large.");
+  if (typeof c.buttonRadius !== "number" || !Number.isFinite(c.buttonRadius) || c.buttonRadius < 0 || c.buttonRadius > 40)
+    errors.push("Button corner rounding must be 0–40 px.");
+  if (typeof c.buttonText !== "string" || (c.buttonText !== "" && !/^#[\da-f]{6}$/i.test(c.buttonText)))
+    errors.push("Button text color must be automatic or a six-digit hex color.");
   for (const key of ["destination", "body", "longHeadline", "description"] as const)
     if (typeof c[key] !== "string" || c[key].length > 2000) errors.push(`Invalid ${key}.`);
   if (

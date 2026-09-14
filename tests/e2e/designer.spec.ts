@@ -142,6 +142,93 @@ test.describe("desktop", () => {
     await expect(page.getByRole("button", { name: "Export PNG" })).toBeDisabled();
     if (shots) await page.screenshot({ path: `${shots}/designer-impossible.png` });
   });
+
+  test("Appearance reaches DOM, Canvas, every surface preview and PNG export, and persists", async ({ page }) => {
+    await open(page);
+    const edit = page.locator("#panel-edit");
+    await expect(edit).not.toContainText("Campaign type");
+    await expect(edit.locator("summary", { hasText: "Brand colors" })).toHaveCount(0);
+    const appearance = accordion(page, "Appearance");
+    await expect(appearance).not.toHaveAttribute("open");
+
+    const exportPng = async () => {
+      const [d] = await Promise.all([
+        page.waitForEvent("download"),
+        page.getByRole("button", { name: "Export PNG" }).click(),
+      ]);
+      return readFileSync((await d.path())!);
+    };
+    const mainCta = page.locator(".canvas-stage .ad-cta");
+    const nativeBox = () =>
+      mainCta.evaluate((e) => {
+        const s = (e as HTMLElement).style;
+        return { x: parseFloat(s.left), y: parseFloat(s.top), h: parseFloat(s.height) };
+      });
+    const heightBefore = (await nativeBox()).h;
+    const pngBefore = await exportPng();
+
+    await appearance.locator("summary").click();
+    await appearance.getByLabel("Button fill color").fill("#1f4d3a");
+    await appearance.getByLabel("Auto").uncheck();
+    await appearance.getByLabel("Button text color").fill("#ffe08a");
+    await appearance.getByRole("button", { name: "Large", exact: true }).click();
+    await expect(appearance.getByRole("button", { name: "Large", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await appearance.getByLabel(/Corner rounding/).fill("20");
+    if (shots) await page.screenshot({ path: `${shots}/designer-appearance.png`, fullPage: true });
+
+    // DOM: the main preview and all four surface previews use the same resolved button.
+    // (Scoped to the designer: the hidden planner also mounts composed cards.)
+    const styles = await page.locator(".designer .ad-cta").evaluateAll((els) =>
+      els.map((e) => {
+        const s = getComputedStyle(e);
+        return [s.backgroundColor, s.color, s.borderTopLeftRadius];
+      }),
+    );
+    expect(styles).toHaveLength(5);
+    for (const s of styles) expect(s).toEqual(["rgb(31, 77, 58)", "rgb(255, 224, 138)", "20px"]);
+    const box = await nativeBox();
+    expect(box.h).toBeGreaterThan(heightBefore);
+
+    // PNG export: native size, and the button's fill is in the pixels.
+    const pngAfter = await exportPng();
+    expect(pngAfter.equals(pngBefore)).toBe(false);
+    const probe = { x: Math.round(box.x + 6), y: Math.round(box.y + box.h / 2) };
+    const exported = await page.evaluate(
+      async ({ b64, x, y }) => {
+        const img = new Image();
+        img.src = `data:image/png;base64,${b64}`;
+        await img.decode();
+        const c = document.createElement("canvas");
+        c.width = img.width;
+        c.height = img.height;
+        const g = c.getContext("2d")!;
+        g.drawImage(img, 0, 0);
+        return { w: img.width, h: img.height, rgb: Array.from(g.getImageData(x, y, 1, 1).data.slice(0, 3)) };
+      },
+      { b64: pngAfter.toString("base64"), ...probe },
+    );
+    expect(exported).toEqual({ w: 1080, h: 1080, rgb: [31, 77, 58] });
+
+    // Canvas renderer: same pixel, same fill.
+    await page.getByRole("button", { name: "Canvas", exact: true }).click();
+    const canvas = page.locator(".canvas-stage canvas");
+    await expect
+      .poll(() =>
+        canvas.evaluate(
+          (c: HTMLCanvasElement, p) => Array.from(c.getContext("2d")!.getImageData(p.x, p.y, 1, 1).data.slice(0, 3)),
+          probe,
+        ),
+      )
+      .toEqual([31, 77, 58]);
+
+    // Saved with the draft: survives a reload.
+    await expect(page.getByText("Draft saved locally")).toBeVisible();
+    await page.reload();
+    await accordion(page, "Appearance").locator("summary").click();
+    await expect(page.getByLabel("Auto")).not.toBeChecked();
+    await expect(page.getByRole("button", { name: "Large", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel(/Corner rounding/)).toHaveValue("20");
+  });
 });
 
 test.describe("tablet", () => {

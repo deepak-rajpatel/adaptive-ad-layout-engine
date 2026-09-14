@@ -37,14 +37,15 @@ import {
 } from "./engine/surfaces";
 import { resolve } from "./engine/resolver";
 import { renderCanvas } from "./render/canvas";
+// Campaign type stays in saved data (drafts, imports, planner) but has no Ad Designer control.
 import {
-  campaignTypes,
   offerLimit,
   toSpec,
-  type CampaignType,
   type Creative,
   type CreativeKey,
 } from "./lib/creative";
+import { buttonSizes } from "./engine/spec";
+import { contrast, textOn } from "./engine/contrast";
 import {
   ctaOptions,
   effectivePriorities,
@@ -1036,42 +1037,122 @@ export default function App() {
                     </div>
                   </details>
                 )}
-                <details className="accordion">
-                  <summary>
-                    <span>Brand colors</span>
-                    <span className="swatches" aria-hidden="true">
-                      {(["accent", "foreground", "background"] as const).map(
-                        (key) => (
-                          <i key={key} style={{ background: creative[key] }} />
-                        ),
-                      )}
-                    </span>
-                    <ChevronDown size={16} className="chev" />
-                  </summary>
-                  <div className="accordion-body">
-                    <div className="color-fields">
-                      {(["accent", "foreground", "background"] as const).map(
-                        (key) => (
-                          <label key={key}>
+                {(() => {
+                  // Automatic button text resolves to whichever of white / near-black reads better.
+                  const buttonLabel = creative.buttonText || textOn(creative.accent);
+                  const buttonContrast = contrast(creative.accent, buttonLabel);
+                  const textContrast = contrast(creative.background, creative.foreground);
+                  return (
+                    <details className="accordion">
+                      <summary>
+                        <span>Appearance</span>
+                        <span className="swatches" aria-hidden="true">
+                          {[
+                            creative.background,
+                            creative.foreground,
+                            creative.accent,
+                            buttonLabel,
+                          ].map((color, i) => (
+                            <i key={i} style={{ background: color }} />
+                          ))}
+                        </span>
+                        <ChevronDown size={16} className="chev" />
+                      </summary>
+                      <div className="accordion-body">
+                        <div className="color-rows">
+                          {(
+                            [
+                              ["background", "Background"],
+                              ["foreground", "Text"],
+                              ["accent", "Button fill"],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <label className="color-row" key={key}>
+                              <span>{label}</span>
+                              <code>{creative[key]}</code>
+                              <input
+                                type="color"
+                                aria-label={`${label} color`}
+                                value={creative[key]}
+                                onChange={(e) => update(key, e.target.value)}
+                              />
+                            </label>
+                          ))}
+                          <div className="color-row">
+                            <span>Button text</span>
+                            <label className="auto-toggle">
+                              <input
+                                type="checkbox"
+                                checked={!creative.buttonText}
+                                onChange={(e) =>
+                                  update(
+                                    "buttonText",
+                                    e.target.checked ? "" : buttonLabel,
+                                  )
+                                }
+                              />
+                              Auto
+                            </label>
                             <input
                               type="color"
-                              aria-label={`${key} color`}
-                              value={creative[key]}
-                              onChange={(e) => update(key, e.target.value)}
+                              aria-label="Button text color"
+                              value={buttonLabel}
+                              disabled={!creative.buttonText}
+                              onChange={(e) => update("buttonText", e.target.value)}
                             />
-                            <span>
-                              {key === "foreground"
-                                ? "Text"
-                                : key === "background"
-                                  ? "Canvas"
-                                  : "Accent"}
-                            </span>
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  </div>
-                </details>
+                          </div>
+                        </div>
+                        <p
+                          className={`contrast-line ${textContrast < surface.minContrast || buttonContrast < surface.minContrast ? "failed" : ""}`}
+                        >
+                          Contrast: text {textContrast.toFixed(2)}:1 · button{" "}
+                          {buttonContrast.toFixed(2)}:1 (target{" "}
+                          {surface.minContrast}:1)
+                        </p>
+                        <div className="field">
+                          <span id="button-size-label">Button size</span>
+                          <div
+                            className="segmented size-presets"
+                            role="group"
+                            aria-labelledby="button-size-label"
+                          >
+                            {buttonSizes.map((size) => (
+                              <button
+                                key={size}
+                                aria-pressed={creative.buttonSize === size}
+                                className={
+                                  creative.buttonSize === size ? "selected" : ""
+                                }
+                                onClick={() => update("buttonSize", size)}
+                              >
+                                {size[0].toUpperCase() + size.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <label className="range-field">
+                          <span>
+                            Corner rounding <b>{creative.buttonRadius} px</b>
+                          </span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="40"
+                            value={creative.buttonRadius}
+                            onChange={(e) =>
+                              update("buttonRadius", +e.target.value)
+                            }
+                          />
+                        </label>
+                        <p className="help-text">
+                          Each surface's minimum text size and tap target still
+                          apply, so a Small button can be enlarged on touch
+                          screens. Rounding is capped at a pill shape.
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })()}
                 <details className="accordion">
                   <summary>
                     <span>More options</span>
@@ -1124,21 +1205,6 @@ export default function App() {
                             Enter a full http(s) address.
                           </small>
                         )}
-                    </label>
-                    <label className="field">
-                      <span>Campaign type</span>
-                      <select
-                        value={creative.campaignType}
-                        onChange={(e) =>
-                          update("campaignType", e.target.value as CampaignType)
-                        }
-                      >
-                        {campaignTypes.map((t) => (
-                          <option key={t} value={t}>
-                            {t === "LeadMagnet" ? "Lead magnet" : t}
-                          </option>
-                        ))}
-                      </select>
                     </label>
                     <fieldset className="required-set">
                       <legend>Required elements</legend>

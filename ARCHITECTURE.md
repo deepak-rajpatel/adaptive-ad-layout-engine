@@ -60,7 +60,7 @@ The engine folder imports nothing from React, the DOM, or `src/lib`. A new surfa
 
 ### Base sizes
 
-The safe box is the surface minus its four insets. A base unit is `max(minTextSize, min(48, 6% of safe width, 16% of safe height))`. Preferred sizes are multiples of it: branding 0.78, headline 2.2, price 1.3, CTA 0.85. Width drives type size, so losing height does not silently scale all text; it forces the degradation ladder instead.
+The safe box is the surface minus its four insets. A base unit is `max(minTextSize, min(48, 6% of safe width, 16% of safe height))`. Preferred sizes are multiples of it: branding 0.78, headline 2.2, price 1.3, CTA 0.85. The spec's optional `button` style scales the CTA's preferred size and label padding (Small 0.8×, Medium 1× = the default, Large 1.25×) and sets its corner radius (capped at a pill); the surface's minimum text size and tap target still apply, and the contrast check uses the chosen button text color (automatic when omitted). Width drives type size, so losing height does not silently scale all text; it forces the degradation ladder instead.
 
 ### Degradation ladder (size plans)
 

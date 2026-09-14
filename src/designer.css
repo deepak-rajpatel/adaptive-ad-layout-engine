@@ -342,6 +342,57 @@
   margin-top: 14px;
 }
 
+/* Appearance */
+.designer .color-rows {
+  display: grid;
+  gap: 8px;
+}
+.designer .color-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.designer .color-row code {
+  font-size: 11px;
+  color: var(--muted);
+}
+.designer .color-row input[type="color"] {
+  width: 40px;
+  height: 30px;
+}
+.designer .color-row input[type="color"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.designer .auto-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.designer .auto-toggle input {
+  accent-color: var(--accent);
+}
+.designer .contrast-line {
+  font-size: 11px;
+  color: var(--green);
+  margin: 12px 0 16px;
+}
+.designer .contrast-line.failed {
+  color: #b3261e;
+}
+.designer .size-presets {
+  display: flex;
+  width: 100%;
+}
+.designer .size-presets button {
+  flex: 1;
+  justify-content: center;
+}
+
 [data-theme="dark"] .designer .check-card {
   background: #2a3824;
   border-color: #3c4d33;
