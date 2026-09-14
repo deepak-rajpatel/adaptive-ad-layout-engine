@@ -1,6 +1,6 @@
 # Omniframe — Adaptive Ad Layout Engine
 
-Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-Surface Ads*. The site opens on the **Ad Designer**: creative inputs on the left, one ad spec re-resolved live in the centre (with all four required surfaces below it), and layout settings on the right.
+Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-Surface Ads*. The site opens on **Home**, where you can create an ad, try the example, import a project, or continue a draft. The **Ad Designer** keeps creative inputs on the left, a live DOM/Canvas preview and four assignment surfaces in the centre, and layout settings on the right.
 
 ## Brief checklist
 
@@ -9,9 +9,9 @@ Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-
 | One declarative spec (headline, image, price, CTA, branding) | [The spec](#the-spec) · `src/engine/spec.ts` |
 | Surface profiles with real constraints (safe area, min text, tap target, viewing distance) | `src/engine/surfaces.ts` · inspector panel |
 | Genuine resolver, no per-surface branches | `src/engine/resolver.ts` · [ARCHITECTURE.md](ARCHITECTURE.md#the-algorithm) |
-| Surface picker, 4 surfaces, same spec | Studio: the four cards under the preview (compared side by side by default) |
+| Surface picker, 4 surfaces, same spec | Ad Designer → Assignment surfaces beneath the preview |
 | Meaningfully different arrangements | Each surface card names the arrangement the resolver chose for it |
-| Intentionally constrained surface, clean degradation | Inspector → degradation demo (drag the kiosk height), or [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520); the *Constrained banner* preset |
+| Intentionally constrained surface, clean degradation | Layout settings → Test smaller sizes (drag the kiosk height), or [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520); the *Constrained banner* preset |
 | No overlap / clipping | `geometryErrors()` on every candidate; `npm test`, `verify.html` |
 | Typed spec, surfaces and output; invalid input rejected | `tests/types.test.ts` (compile-time), `validateSpec` / `validateSurface` (runtime) |
 | Spec → resolution → output → rendering separation | `src/engine/*` (no React/DOM, enforced by a test) → `src/render/dom.ts`, `src/render/canvas.ts` |
@@ -31,19 +31,29 @@ The **Ad platforms** tab (or `?view=platforms`) is beyond the brief. It applies 
 
 One declarative ad spec, resolved by a TypeScript constraint engine into genuinely different layouts for a tall phone, a wide broadcast lower-third, a square retail kiosk, and any other surface you describe. No per-surface templates, no CSS breakpoints deciding geometry, no uniform scaling.
 
-![Studio on the 1080 × 1080 retail kiosk: one spec re-resolved for all four required surfaces](docs/screenshots/studio-kiosk.png)
+## Current workflow and screenshots
 
-| Kiosk at 520 px: full-size arrangements are exhausted, so only branding (priority 3) is reduced | Broadcast lower-third, 1920 × 250, 32 px minimum text |
+Screenshots captured from the running application on 15 September 2026; these are actual UI captures, not generated mockups. Home shows a returning local draft; My creatives shows the real empty library state. Screenshots show the visible desktop viewport.
+
+![Ad Designer with the shared creative and live preview](docs/screenshots/ad-designer.png)
+
+| Home: start or resume | Create an ad: short setup |
 | --- | --- |
-| ![Kiosk degradation](docs/screenshots/kiosk-degraded.png) | ![Broadcast](docs/screenshots/broadcast.png) |
+| ![Home](docs/screenshots/home.png) | ![Create an ad](docs/screenshots/create-ad.png) |
 
-## Three things to try
+| Ad platforms: placement browsing | My creatives: saved library |
+| --- | --- |
+| ![Ad platforms](docs/screenshots/ad-platforms.png) | ![My creatives empty state](docs/screenshots/my-creatives.png) |
 
-1. **Edit the headline.** Every surface preview re-resolves from the same spec.
-2. **Run the degradation demo** in the inspector (or open [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520)). Drag the kiosk height down. From 1080 to about 540 px the engine only **repositions** everything at full size (gallery → split → strip). At 520 px **branding (priority 3)** shrinks to its 24 px minimum first; then price and CTA (priority 2), then the headline (priority 1). Around 180 px branding and price drop out cleanly while the headline and CTA stay intact; at 140 px the result is reported impossible. **Why each element is here** explains every box.
-3. **Describe an unseen surface.** Pick *Custom surface* and set any dimensions, per-surface text minimum, viewing distance, input type, and tap target. The same resolver handles it with no code change. 18 IAB and social sizes are included as further examples.
-4. **Change the intent.** The editor starts on *Sales* (the brief's product ad; its priorities equal the brief's example). Switch to *Brand awareness* and the logo becomes priority 1, so on tight surfaces lower-priority elements shrink and drop before branding does (the constrained banner shows it). Intent changes only the spec's data (priorities, the secondary-text label, suggested CTAs), never a layout. The CTA is a dropdown of 20 common labels plus *Custom*.
-5. **Plan every placement.** In the planner, set Goal to *Sales* and tick *Goal sets element priorities*. Every composed banner recomposes with the offer promoted, and Sales placements move to the top of each group. Then click *Remove image* to see which placements still work as text only.
+1. **Home → Create an ad.** Add a headline, optionally choose a goal, image, brand and offer, then open Ad Designer. Sales is first and is used if setup goal selection is skipped. Existing drafts retain their chosen goal.
+2. **Edit and compare.** Change the headline and select the four assignment surfaces. Both DOM and Canvas consume the same resolved layout. Open **Appearance** for background/text/button colours, button size presets and corner rounding.
+3. **Inspect adaptation.** Under Layout settings, expand **Test smaller sizes** and reduce kiosk height. Use **Layout details** to inspect omissions, reductions and element explanations. The outcome depends on the current creative and constraints; required elements are never silently dropped.
+4. **Try an unseen surface.** Select **Custom surface**, enter dimensions and expand **Accessibility** to adjust constraints. The resolver needs no surface-specific code change.
+5. **Browse Ad platforms.** Filter by Network or Status, expand More filters or a card's View details, and open a placement in Ad Designer. The same creative is retained. Composed PNGs and native image assets are labelled separately.
+6. **Save and reopen.** Save version stores a named snapshot in My creatives; automatic draft saving is separate. Home can resume the current draft. Opening different work or importing JSON preserves an unsaved valid draft in the local library before replacement; failure to preserve blocks replacement.
+7. **Export.** Export PNG renders at the selected surface's native dimensions. Project options provides JSON import/export. Local use does not require sign-in.
+
+Direct links: [Ad Designer](https://adaptive-ad-layout-engine.vercel.app/?view=designer), [Ad platforms](https://adaptive-ad-layout-engine.vercel.app/?view=platforms), [My creatives](https://adaptive-ad-layout-engine.vercel.app/?view=library), or a required surface such as [`?surface=broadcast`](https://adaptive-ad-layout-engine.vercel.app/?surface=broadcast).
 
 ## Run locally
 
@@ -55,7 +65,7 @@ npm run dev        # http://127.0.0.1:5173
 npm test           # unit, type-level, persistence, and database-policy tests
 npm run build      # strict tsc -b + production build
 npm run benchmark  # resolver timing (Vitest bench)
-npm run test:e2e   # production build + Playwright planner checks (uses installed Microsoft Edge)
+npm run test:e2e   # production build + Playwright designer, planner and workflow checks (uses installed Microsoft Edge)
 ```
 
 With the dev server running, open `http://127.0.0.1:5173/verify.html` to re-run the real-browser layout verification, and `http://127.0.0.1:5173/verify-export.html` to render every planner export and check each PNG's size.
@@ -149,7 +159,7 @@ The engine folder imports nothing from React, the DOM, or the app. Adding a surf
 
 Guest drafts, named versions, favorites, collections, duplicate, rename, delete, and portable JSON import/export work locally without an account. Email sign-up/login, password recovery, a private cloud library, and a private image library use Supabase.
 
-**Current deployment state:** login works, but the database tables and image bucket have **not** been created (verified read-only; see [VERIFICATION.md](VERIFICATION.md)). The app detects this and disables cloud save, the cloud library, and image upload with an explanation.
+**Last recorded cloud check (14 September 2026):** login worked, but the database tables and image bucket had **not** been created (see [VERIFICATION.md](VERIFICATION.md)); this documentation refresh did not recheck the live backend. The app detects this and disables cloud save, the cloud library, and image upload with an explanation.
 
 To enable cloud features:
 
@@ -165,6 +175,9 @@ To enable cloud features:
 Row-level security limits every creative to `auth.uid() = user_id`; storage policies limit read, upload, and delete to the user's own folder. `tests/database.test.ts` checks these policies against the real SQL in PGlite; that is not a substitute for testing the live project.
 
 ## Known limitations
+
+- Unfinished Create-page inputs and pending image processing survive in-app navigation, but not a full reload. Once created, the current creative uses local draft autosaving.
+- Drafts and local versions depend on browser storage; export JSON for a portable backup. Cloud features require the optional Supabase setup and are not required for the assignment demo.
 
 - **One element per role** and a fixed role set (primary, secondary, hero, action, branding). Branding is a text wordmark; a logo image would need its own sizing rule.
 - **Landscape and kiosk share the gallery family.** The tall, wide, and square surfaces get three different arrangements (stack, strip, gallery). Mobile landscape fits gallery at full size, and the resolver never shrinks text just to reach a differently shaped layout, so it does not switch to split unless space runs short.
@@ -184,27 +197,17 @@ Row-level security limits every creative to `auth.uid() = user_id`; storage poli
 
 ## Time spent
 
-Recorded timestamps, all 14 September 2026 (IST):
-
-| Time | Event |
-| --- | --- |
-| 01:07 | Project plan written |
-| 01:28 | Repository initialized |
-| 03:18 – 05:40 | First implementation session (Codex), committed at 05:40 |
-| 11:17 | Image-delivery optimization committed |
-| ≈ 11:35 – 12:45 | Review, brief alignment, engine rework, presets, verification, and docs (Claude Code) |
-| Afternoon | Creative-first planner, steps 1–9 of `docs/planner-spec.md` (Claude Code); per-step commit times are in `git log` |
-
-That is roughly 11½ hours of calendar time with gaps, including an interruption between about 03:18 and 05:20. Active hands-on time was not tracked with a timer, so **the author should replace this line with their own estimate** before submission.
+Development, review and revisions took place on **14–15 September 2026**, across multiple sessions. Active working hours were not tracked, so no precise hour total is claimed. The commit history records implementation milestones; it is not a measure of uninterrupted work time.
 
 ## AI use
 
-- **Codex** helped with the initial architecture, implementation, tests, and documentation; its built-in image generator created the sample headphone image and the design reference ([design/README.md](design/README.md)).
-- **Claude Code** reviewed the implementation against the brief and did the brief-alignment rework: the typed `defineAd` spec and priority semantics, the degradation ladder, the brief's surface constraints, the kiosk demo, separated renderers, per-element explanations, the IAB and social presets, browser verification, and these docs.
+AI assistance is disclosed as required by the assignment:
 
-- **Claude Code** also implemented the creative-first planner from `docs/planner-spec.md`: removing video, the schema-3 migration, catalog verification against official sources, the planning engine, the planner UI, export, and the Playwright checks. Each step is a separate commit for the author to review.
+- **Codex:** initial architecture and implementation assistance, code review, documentation, and generated design references and the fictional headphone asset (see [design/README.md](design/README.md)). It also helped review the connected workflow and refresh these screenshots and instructions.
+- **Claude Code:** engine/brief alignment, the creative-first placement planner, the three-column Ad Designer and Appearance controls, connected Home/Create/My creatives workflow, persistence and upload fixes, and automated checks.
+- **Author:** selected the design direction, reviewed the UI, requested revisions and is responsible for the submitted implementation and explaining its behaviour.
 
-The author is responsible for reviewing and explaining the work.
+The repository retains AI co-author credits. The assignment permits AI tools with disclosure and expects the author to explain the final code, demonstrate degradation and add an unseen surface during interview.
 
 ## Sources
 
