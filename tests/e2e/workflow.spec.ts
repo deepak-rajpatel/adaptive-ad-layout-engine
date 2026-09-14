@@ -28,7 +28,7 @@ test.describe("desktop", () => {
   test("first visit → create → edit → platforms → save → reopen → continue → export", async ({ page }) => {
     // 1. First visit: no fabricated work.
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "What will you create today?" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Create one ad. Adapt it to multiple screens." })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue editing/ })).toHaveCount(0);
     await shot(page, "flow-1-home-first");
     await page.getByRole("button", { name: "Create an ad" }).first().click();
@@ -148,7 +148,7 @@ test.describe("phone", () => {
   test("main navigation works at a narrow width without horizontal scrolling", async ({ page }) => {
     await page.goto("/");
     const stops: [string, string][] = [
-      ["Home", "What will you create today?"],
+      ["Home", "Create one ad. Adapt it to multiple screens."],
       ["Ad Designer", "Ad Designer"],
       ["Ad platforms", "Ad platforms"],
       ["My creatives", "My creatives"],

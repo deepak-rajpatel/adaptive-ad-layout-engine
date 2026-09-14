@@ -64,15 +64,18 @@ export function HomePage({
   if (!returning)
     return (
       <section className="home home-first" aria-labelledby="home-title">
-        <h1 id="home-title">What will you create today?</h1>
-        <p className="home-lede">Write your ad once. See it fit every screen.</p>
+        <h1 id="home-title">Create one ad. Adapt it to multiple screens.</h1>
+        <p className="home-lede">
+          Add your message and an optional image. Preview how your ad adjusts to
+          mobile, kiosk, and banner sizes.
+        </p>
         <div className="home-choices">
           <article className="home-card">
             <span className="home-plus" aria-hidden="true">
               <Plus size={26} />
             </span>
             <h2>Create an ad</h2>
-            <p>Start with your message and an optional image.</p>
+            <p>Start with your own message, then customise your ad.</p>
             <button className="button primary wide" onClick={onCreate}>
               Create an ad
             </button>
@@ -81,15 +84,15 @@ export function HomePage({
             <div className="home-thumb">
               <Preview surface={kiosk} result={example} maxHeight={150} />
             </div>
-            <h2>Try an example</h2>
-            <p>Explore with a sample creative.</p>
+            <h2>Explore an example</h2>
+            <p>See how the same ad adapts to different screen sizes.</p>
             <button className="button outline wide" onClick={onExample}>
-              Open example
+              Try an example
             </button>
           </article>
         </div>
         <div className="home-import">{importButton}</div>
-        <p className="home-storage">{storageLabel}</p>
+        <p className="home-storage">Drafts save automatically in this browser.</p>
         {importInput}
       </section>
     );
