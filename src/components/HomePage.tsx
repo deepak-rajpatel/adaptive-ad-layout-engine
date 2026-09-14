@@ -1,19 +1,17 @@
-import { useMemo, useRef } from "react";
+import { useRef } from "react";
 import { ArrowRight, Plus, Upload } from "lucide-react";
 import type { ResolvedLayout } from "../engine/layout";
 import type { Surface } from "../engine/surfaces";
-import { resolve } from "../engine/resolver";
-import { sample, toSpec } from "../lib/creative";
-import { surfaces } from "../lib/data";
-import { measure } from "../lib/measure";
+import type { ExampleAd } from "../engine/examples";
 import type { SavedCreative } from "../lib/persistence";
 import { editedAgo } from "../lib/time";
+import { ExampleGallery } from "./ExampleGallery";
 import { Preview } from "./Preview";
 
 /**
- * Home: first visit (no user work) or returning (a real draft and/or saved creatives).
- * Everything shown comes from the current draft and the saved library; nothing is sample data
- * except the explicitly labelled example.
+ * Home: heading with Create an ad, then (only with real work) recent creatives, the example
+ * gallery, and a compact create-from-scratch section. Nothing shown is fabricated: recent
+ * items come from the draft and the saved library; examples are labelled as examples.
  */
 export function HomePage({
   draft,
@@ -21,129 +19,64 @@ export function HomePage({
   storageLabel,
   onContinue,
   onCreate,
-  onExample,
+  onUseExample,
   onImport,
   onOpen,
   onViewAll,
 }: {
   /** The current draft when it is real user work; null otherwise. */
   draft: { name: string; editedAt: string; surface: Surface; result: ResolvedLayout } | null;
+  /** Recent saved creatives, excluding any identical to the current draft. */
   recent: { item: SavedCreative; result: ResolvedLayout }[];
   storageLabel: string;
   onContinue: () => void;
   onCreate: () => void;
-  onExample: () => void;
+  onUseExample: (example: ExampleAd) => void;
   onImport: (file: File) => void;
   onOpen: (item: SavedCreative) => void;
   onViewAll: () => void;
 }) {
   const importRef = useRef<HTMLInputElement>(null);
-  const kiosk = surfaces[3];
-  const example = useMemo(() => resolve(toSpec(sample), kiosk, measure), [kiosk]);
   const returning = !!draft || recent.length > 0;
-  const importInput = (
-    <input
-      ref={importRef}
-      hidden
-      type="file"
-      accept="application/json,.json"
-      aria-label="Import a project file"
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) onImport(file);
-        e.target.value = "";
-      }}
-    />
-  );
-  const importButton = (
-    <button className="text-link" onClick={() => importRef.current?.click()}>
-      <Upload size={15} /> Import a project
-    </button>
-  );
-
-  if (!returning)
-    return (
-      <section className="home home-first" aria-labelledby="home-title">
-        <h1 id="home-title">Create one ad. Adapt it to multiple screens.</h1>
-        <p className="home-lede">
-          Add your message and an optional image. Preview how your ad adjusts to
-          mobile, kiosk, and banner sizes.
-        </p>
-        <div className="home-choices">
-          <article className="home-card">
-            <span className="home-plus" aria-hidden="true">
-              <Plus size={26} />
-            </span>
-            <h2>Create an ad</h2>
-            <p>Start with your own message, then customise your ad.</p>
-            <button className="button primary wide" onClick={onCreate}>
-              Create an ad
-            </button>
-          </article>
-          <article className="home-card">
-            <div className="home-thumb">
-              <Preview surface={kiosk} result={example} maxHeight={150} />
-            </div>
-            <h2>Explore an example</h2>
-            <p>See how the same ad adapts to different screen sizes.</p>
-            <button className="button outline wide" onClick={onExample}>
-              Try an example
-            </button>
-          </article>
-        </div>
-        <div className="home-import">{importButton}</div>
-        <p className="home-storage">Drafts save automatically in this browser.</p>
-        {importInput}
-      </section>
-    );
-
   return (
-    <section className="home home-returning" aria-labelledby="home-title">
-      <h1 id="home-title">Welcome back.</h1>
-      <p className="home-lede">Pick up where you left off, or start something new.</p>
-      <div className={`home-top ${draft ? "" : "single"}`}>
-        {draft && (
-          <article className="home-card continue-card">
-            <div className="home-thumb">
-              <Preview surface={draft.surface} result={draft.result} maxHeight={180} />
-            </div>
-            <div className="continue-body">
-              <span className="home-label">Current draft</span>
-              <h2>{draft.name}</h2>
-              <p>
-                {draft.editedAt} · {draft.surface.name}
-              </p>
-              <button className="button primary" onClick={onContinue}>
-                Continue editing <ArrowRight size={16} />
-              </button>
-            </div>
-          </article>
-        )}
-        <article className="home-card new-card">
-          <span className="home-plus" aria-hidden="true">
-            <Plus size={24} />
-          </span>
-          <h2>Create a new ad</h2>
-          <button className="button outline" onClick={onCreate}>
-            Create an ad
-          </button>
-          <div className="new-card-links">
-            <button className="text-link" onClick={onExample}>
-              Try an example
-            </button>
-            {importButton}
-          </div>
-        </article>
+    <section className="home" aria-labelledby="home-title">
+      <div className="home-hero">
+        <div>
+          <h1 id="home-title">Create one ad. Adapt it to multiple screens.</h1>
+          <p className="home-lede">
+            Add your message and an optional image. Preview how your ad adjusts to
+            mobile, kiosk, and banner sizes.
+          </p>
+        </div>
+        <button className="button primary home-cta" onClick={onCreate}>
+          <Plus size={17} /> Create an ad
+        </button>
       </div>
-      {recent.length > 0 && (
+
+      {returning && (
         <section className="home-recent" aria-labelledby="recent-title">
           <div className="home-recent-head">
-            <h2 id="recent-title">Recent creatives</h2>
+            <h2 id="recent-title">Your recent creatives</h2>
             <button className="text-link" onClick={onViewAll}>
               View all <ArrowRight size={14} />
             </button>
           </div>
           <div className="home-recent-grid">
+            {draft && (
+              <article className="recent-card continue-card">
+                <div className="home-thumb">
+                  <Preview surface={draft.surface} result={draft.result} maxHeight={150} />
+                </div>
+                <span className="home-label">Current draft</span>
+                <strong>{draft.name}</strong>
+                <small>
+                  {draft.editedAt} · {draft.surface.name}
+                </small>
+                <button className="button primary small" onClick={onContinue}>
+                  Continue editing <ArrowRight size={15} />
+                </button>
+              </article>
+            )}
             {recent.map(({ item, result }) => (
               <button
                 key={item.id}
@@ -161,8 +94,39 @@ export function HomePage({
           </div>
         </section>
       )}
-      <p className="home-storage">{storageLabel}</p>
-      {importInput}
+
+      <ExampleGallery onUse={onUseExample} />
+
+      <section className="home-scratch" aria-labelledby="scratch-title">
+        <div>
+          <h2 id="scratch-title">Have your own idea?</h2>
+          <p>Start with your message and an optional image.</p>
+        </div>
+        <div className="home-scratch-actions">
+          <button className="button primary" onClick={onCreate}>
+            Create an ad
+          </button>
+          <button className="button" onClick={() => importRef.current?.click()}>
+            <Upload size={15} /> Import a project
+          </button>
+        </div>
+      </section>
+
+      <p className="home-storage">
+        {returning ? storageLabel : "Drafts save automatically in this browser."}
+      </p>
+      <input
+        ref={importRef}
+        hidden
+        type="file"
+        accept="application/json,.json"
+        aria-label="Import a project file"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onImport(file);
+          e.target.value = "";
+        }}
+      />
     </section>
   );
 }

@@ -82,7 +82,7 @@ test.describe("desktop", () => {
 
     // 6. Home now shows the real draft and recent creatives; continue editing.
     await nav(page, "Home");
-    await expect(page.getByRole("heading", { name: "Welcome back." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your recent creatives" })).toBeVisible();
     await expect(page.locator(".continue-card")).toContainText("Launch test");
     await expect(page.locator(".home-recent")).toContainText("Launch test (draft)");
     await shot(page, "flow-6-home-returning");
@@ -145,25 +145,30 @@ test.describe("work protection", () => {
 test.describe("examples", () => {
   test.use({ viewport: { width: 1440, height: 1000 } });
 
-  test("choose, filter, use and edit an example; the library copy stays unchanged", async ({ page }) => {
+  test("Home gallery: filter, navigate, use and edit an example; the library copy stays unchanged", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Try an example" }).click();
-    const dialog = page.getByRole("dialog", { name: "Choose an example" });
-    await expect(dialog.locator(".example-card")).toHaveCount(8);
-    await shot(page, "examples-chooser");
-    // Closing leaves everything as it was.
-    await page.keyboard.press("Escape");
-    await expect(dialog).toBeHidden();
-    await expect(page.getByRole("heading", { name: "Create one ad. Adapt it to multiple screens." })).toBeVisible();
+    const gallery = page.locator(".example-gallery");
+    const row = gallery.locator(".gallery-row");
+    // First visit: examples straight away, no recent section, no modal needed.
+    await expect(page.getByRole("heading", { name: "Your recent creatives" })).toHaveCount(0);
+    await expect(row.locator(".example-card")).toHaveCount(8);
+    await expect(row.locator(".example-card .preview-frame")).toHaveCount(8);
+    await shot(page, "home-gallery-first");
 
-    await page.getByRole("button", { name: "Try an example" }).click();
-    await dialog.getByRole("button", { name: "Traffic", exact: true }).click();
-    await expect(dialog.locator(".example-card")).toHaveCount(2);
-    await dialog
-      .locator('[data-example-id="traffic-small-space-workspace"]')
-      .getByRole("button", { name: "Use this example" })
-      .click();
-    await expect(dialog).toBeHidden();
+    // Next scrolls inside the row only; changing the filter returns to the start.
+    await gallery.getByRole("button", { name: "Next examples" }).click();
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+    expect(await noOverflow(page)).toBe(true);
+    await gallery.getByRole("button", { name: "Traffic", exact: true }).click();
+    await expect(row.locator(".example-card")).toHaveCount(2);
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(0);
+
+    const useSmallSpace = () =>
+      page
+        .locator('.example-gallery [data-example-id="traffic-small-space-workspace"]')
+        .getByRole("button", { name: /Use this example/ })
+        .click();
+    await useSmallSpace();
     await expect(headline(page)).toHaveValue("Make room for better work.");
     await expect(page.locator("#panel-edit select").first()).toHaveValue("Consideration");
     await expect(page.locator(".stage-caption")).toContainText("1080 × 1080");
@@ -171,15 +176,25 @@ test.describe("examples", () => {
 
     await headline(page).fill("My own workspace headline");
     await nav(page, "Home");
-    await page.getByRole("button", { name: "Try an example" }).click();
-    await dialog
-      .locator('[data-example-id="traffic-small-space-workspace"]')
-      .getByRole("button", { name: "Use this example" })
-      .click();
+    await expect(page.getByRole("heading", { name: "Your recent creatives" })).toBeVisible();
+    await shot(page, "home-gallery-returning");
+    await useSmallSpace();
     // The edited draft was kept, and the example opens as originally defined.
     await expect(headline(page)).toHaveValue("Make room for better work.");
     await nav(page, "My creatives");
     await expect(page.getByRole("heading", { name: "Workspace article (draft)" })).toBeVisible();
+  });
+
+  test("the Create page chooser reuses the examples and keeps unfinished inputs", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Create an ad" }).first().click();
+    await page.getByLabel("Creative name").fill("Still typing");
+    await page.getByRole("button", { name: "Try an example" }).click();
+    const dialog = page.getByRole("dialog", { name: "Choose an example" });
+    await expect(dialog.locator(".example-card")).toHaveCount(8);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page.getByLabel("Creative name")).toHaveValue("Still typing");
   });
 });
 

@@ -2178,7 +2178,12 @@ export default function App() {
                       }
                     : null
                 }
-                recent={recentCards}
+                // The current draft is shown once: drop a saved version identical to it.
+                recent={
+                  isUserWork
+                    ? recentCards.filter((c) => !sameWork(c.item, { creative, surface }))
+                    : recentCards
+                }
                 storageLabel={
                   user
                     ? `Signed in as ${user.email}. Drafts save on this device; Save version can also save to the cloud.`
@@ -2186,10 +2191,7 @@ export default function App() {
                 }
                 onContinue={() => setPage("studio")}
                 onCreate={() => setPage("create")}
-                onExample={() => {
-                  setExampleError("");
-                  setExampleOpen(true);
-                }}
+                onUseExample={startFromExample}
                 onImport={(file) => void importPreserving(file)}
                 onOpen={openSaved}
                 onViewAll={() => setPage("library")}

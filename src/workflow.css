@@ -691,6 +691,140 @@
   margin-left: 6px;
 }
 
+/* Home: heading row, recent creatives, example gallery, create from scratch */
+.home-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.home-hero h1 {
+  max-width: 760px;
+}
+.home-hero .home-lede {
+  max-width: 680px;
+}
+.home-cta {
+  font-size: 15px;
+  padding: 14px 22px;
+  flex-shrink: 0;
+}
+.home > section {
+  margin-top: 40px;
+}
+.home-recent-grid {
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+}
+.home-recent .continue-card {
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 4px;
+  border-color: var(--accent);
+}
+.home-recent .continue-card .home-thumb {
+  width: 100%;
+}
+.home-recent .continue-card .button {
+  margin-top: 8px;
+}
+.gallery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+.gallery-head h2 {
+  font-size: 22px;
+  letter-spacing: -0.4px;
+}
+.gallery-head p {
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.gallery-nav {
+  display: flex;
+  gap: 8px;
+}
+.gallery-nav .icon-button {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  min-width: 42px;
+  min-height: 42px;
+  border-radius: 50%;
+}
+.example-gallery .example-filters {
+  margin: 16px 0 14px;
+}
+.gallery-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding: 2px 2px 12px;
+  border-radius: 12px;
+}
+.gallery-row:focus-visible {
+  outline: 3px solid #e88b66;
+  outline-offset: 3px;
+}
+/* Wide enough to read the preview; the next card peeks in at the edge. */
+.gallery-row > .example-card {
+  flex: 0 0 clamp(250px, 27%, 300px);
+  scroll-snap-align: start;
+}
+.gallery-row .example-thumb {
+  min-height: 270px;
+  justify-content: center;
+}
+.example-goal {
+  font-size: 12px;
+  color: var(--muted);
+}
+.home-scratch {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 22px 26px;
+}
+.home-scratch h2 {
+  font-size: 20px;
+}
+.home-scratch p {
+  color: var(--muted);
+  font-size: 14px;
+  margin-top: 4px;
+}
+.home-scratch-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .home-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .home-cta {
+    justify-content: center;
+  }
+  .gallery-row > .example-card {
+    flex-basis: 82%;
+  }
+  .home-scratch-actions,
+  .home-scratch-actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Example chooser */
 dialog.example-dialog {
   width: min(1040px, calc(100% - 24px));
