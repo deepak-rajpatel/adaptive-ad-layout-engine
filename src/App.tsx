@@ -6,16 +6,14 @@ import {
   ChevronDown,
   Cloud,
   Copy,
-  Expand,
   Folder,
-  Grid2X2,
   Heart,
   ImagePlus,
   Info,
   Layers,
   LogOut,
-  Maximize2,
   Moon,
+  MoreHorizontal,
   Plus,
   RotateCcw,
   Save,
@@ -39,14 +37,22 @@ import {
 } from "./engine/surfaces";
 import { resolve } from "./engine/resolver";
 import { renderCanvas } from "./render/canvas";
-import { toSpec, type Creative } from "./lib/creative";
+import {
+  campaignTypes,
+  offerLimit,
+  toSpec,
+  type CampaignType,
+  type Creative,
+  type CreativeKey,
+} from "./lib/creative";
 import {
   ctaOptions,
   effectivePriorities,
   goals,
   intentCopy,
 } from "./engine/creativeModel";
-import type { Goal } from "./engine/placements";
+import { validDestination, type Goal } from "./engine/placements";
+import "./designer.css";
 import { sample, surfaces } from "./lib/data";
 import { measure } from "./lib/measure";
 import { supabase } from "./lib/supabase";
@@ -112,6 +118,15 @@ const priorityLabels: Record<"brand" | "image" | "offer", string> = {
   image: "Product image",
   offer: "Offer",
 };
+const requiredLabels: Record<CreativeKey, string> = {
+  headline: "Headline",
+  cta: "Button",
+  brand: "Brand",
+  image: "Image",
+  offer: "Offer",
+};
+// Sales (the brief's product ad) leads the menu; a saved project's goal is kept as chosen.
+const goalMenu: readonly Goal[] = ["Sales", ...goals.filter((g) => g !== "Sales")];
 
 export default function App() {
   const [creative, setCreative] = useState<Creative>(draft.creative);
@@ -126,8 +141,10 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState("preview");
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
-  const [compare, setCompare] = useState(true);
   const [ctaCustom, setCtaCustom] = useState(false);
+  // Character counters show only for the focused field (or near a limit).
+  const [focused, setFocused] = useState<string | null>(null);
+  const lastImage = useRef<string | null>(null);
   const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
   const [draftStatus, setDraftStatus] = useState("Draft restored");
@@ -543,7 +560,7 @@ export default function App() {
             className={page === "studio" ? "nav-active" : ""}
             onClick={() => setPage("studio")}
           >
-            Layout studio
+            Ad Designer
           </button>
           <button
             className={page === "planner" ? "nav-active" : ""}
@@ -600,24 +617,20 @@ export default function App() {
         </div>
       </header>
       <main>
+        {/* The Ad Designer uses its own compact toolbar; other pages keep this heading. */}
+        {page !== "studio" && (
         <section className="page-heading">
           <div>
             <div className="eyebrow">
               <span className="status-dot" />{" "}
               {page === "planner"
                 ? "EXTENSION · AD PLATFORM PLANNER"
-                : page === "studio"
-                  ? "ADAPTIVE LAYOUT ENGINE · ONE SPEC, FOUR SURFACES"
-                  : "YOUR CREATIVE LIBRARY"}
+                : "YOUR CREATIVE LIBRARY"}
             </div>
             <h1>
               {page === "planner" ? (
                 <>
                   One asset. <span>More possibilities.</span>
-                </>
-              ) : page === "studio" ? (
-                <>
-                  One creative. <span>Every surface.</span>
                 </>
               ) : (
                 <>
@@ -628,42 +641,19 @@ export default function App() {
             <p>
               {page === "planner"
                 ? "The same engine applied to real Meta, Google, Taboola and LinkedIn placements."
-                : page === "studio"
-                  ? "Edit the ad once. Every surface re-resolves live. Shrink the kiosk in the inspector to watch degradation."
-                  : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
+                : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
             </p>
           </div>
           <div className="heading-actions">
-            {page === "studio" ? (
-              <>
-                <button
-                  className="button"
-                  onClick={() => {
-                    setSaveCloud(false);
-                    setSaveError("");
-                    setSaveOpen(true);
-                  }}
-                >
-                  <Save size={16} /> Save version
-                </button>
-                <button
-                  className="button primary"
-                  disabled={!valid}
-                  onClick={() => void exportPng()}
-                >
-                  <ArrowDownToLine size={16} /> Export PNG
-                </button>
-              </>
-            ) : (
-              <button
-                className="button primary"
-                onClick={() => setPage("studio")}
-              >
-                <Plus size={16} /> Open studio
-              </button>
-            )}
+            <button
+              className="button primary"
+              onClick={() => setPage("studio")}
+            >
+              <Plus size={16} /> Open Ad Designer
+            </button>
           </div>
         </section>
+        )}
         <div hidden={page !== "planner"}>
           <CreativePlanner
             creative={creative}
@@ -702,13 +692,46 @@ export default function App() {
           />
         </div>
         {page === "planner" ? null : page === "studio" ? (
-          <>
+          <div className="designer">
+            <section className="designer-toolbar" aria-label="Project">
+              <div>
+                <h1>Ad Designer</h1>
+                <p>
+                  {creative.brand.trim() || "Untitled creative"} · {surface.name}{" "}
+                  · <span role="status">{draftStatus}</span>
+                </p>
+              </div>
+              <div className="heading-actions">
+                <button
+                  className="button"
+                  onClick={() => {
+                    setSaveCloud(false);
+                    setSaveError("");
+                    setSaveOpen(true);
+                  }}
+                >
+                  <Save size={16} /> Save version
+                </button>
+                <button
+                  className="button primary"
+                  disabled={!valid}
+                  title={
+                    valid
+                      ? undefined
+                      : "Export is disabled until the layout checks pass."
+                  }
+                  onClick={() => void exportPng()}
+                >
+                  <ArrowDownToLine size={16} /> Export PNG
+                </button>
+              </div>
+            </section>
             <div
               className="mobile-tabs"
               role="tablist"
-              aria-label="Workspace panels"
+              aria-label="Designer panels"
             >
-              {["edit", "preview", "inspect"].map((tab) => (
+              {(["edit", "preview", "inspect"] as const).map((tab) => (
                 <button
                   key={tab}
                   role="tab"
@@ -747,7 +770,7 @@ export default function App() {
                   ) : (
                     <Settings2 size={16} />
                   )}
-                  {tab}
+                  {tab === "edit" ? "Edit" : tab === "preview" ? "Preview" : "Settings"}
                 </button>
               ))}
             </div>
@@ -755,162 +778,224 @@ export default function App() {
               <aside
                 className="panel editor-panel"
                 id="panel-edit"
-                aria-label="Edit creative"
+                aria-label="Your creative"
               >
-                <div className="panel-title">
-                  <div>
-                    <span className="section-number">01</span>
-                    <h2>Your creative</h2>
-                  </div>
-                  <button
-                    className="icon-button"
-                    title="Reset to sample"
-                    aria-label="Reset to sample"
-                    onClick={() => {
-                      setCreative(sample);
-                      setMessage(
-                        "Sample restored. Saved versions are unchanged.",
-                      );
+                <h2 className="designer-title">Your creative</h2>
+                <label className="field">
+                  <span>Goal</span>
+                  <select
+                    value={creative.goal}
+                    onChange={(e) => {
+                      const goal = e.target.value as Goal;
+                      setCreative((c) => {
+                        // Swap the CTA only if it was one of the old goal's suggestions.
+                        const suggested = intentCopy[c.goal].ctas.some(
+                          (x) => x.toLowerCase() === c.cta.trim().toLowerCase(),
+                        );
+                        return {
+                          ...c,
+                          goal,
+                          useGoalPriorities: true,
+                          cta: suggested ? intentCopy[goal].ctas[0] : c.cta,
+                        };
+                      });
                     }}
                   >
-                    <RotateCcw size={15} />
-                  </button>
-                </div>
-                <p className="panel-description">
-                  A single source for every placement.
-                </p>
-                <div className="editor-fields">
-                  <label className="field">
-                    <span>
-                      Intent <small>What should this ad achieve?</small>
-                    </span>
-                    <select
-                      value={creative.goal}
-                      onChange={(e) => {
-                        const goal = e.target.value as Goal;
-                        setCreative((c) => {
-                          // Swap the CTA only if it was one of the old intent's suggestions.
-                          const suggested = intentCopy[c.goal].ctas.some(
-                            (x) => x.toLowerCase() === c.cta.trim().toLowerCase(),
-                          );
-                          return {
-                            ...c,
-                            goal,
-                            useGoalPriorities: true,
-                            cta: suggested ? intentCopy[goal].ctas[0] : c.cta,
-                          };
-                        });
-                      }}
-                    >
-                      {goals.map((g) => (
-                        <option key={g} value={g}>
-                          {intentCopy[g].label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {(["brand", "headline", "offer"] as const).map(
-                    (key) => (
-                      <label className="field" key={key}>
+                    {goalMenu.map((g) => (
+                      <option key={g} value={g}>
+                        {intentCopy[g].label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {(["brand", "headline", "offer"] as const).map((key) => {
+                  const limit = key === "headline" ? 160 : 60;
+                  const label =
+                    key === "offer"
+                      ? intentCopy[creative.goal].offerLabel
+                      : key === "brand"
+                        ? "Brand"
+                        : "Headline";
+                  const missing =
+                    creative.required[key] && !creative[key].trim();
+                  return (
+                    <label className="field" key={key}>
+                      <span>
                         <span>
-                          {key === "offer"
-                            ? intentCopy[creative.goal].offerLabel
-                            : key}
+                          {label}
+                          {!creative.required[key] && <em> (optional)</em>}
+                        </span>
+                        {(focused === key ||
+                          creative[key].length >= limit * 0.9) && (
                           <small>
-                            {creative[key].length}/
-                            {key === "headline" ? 160 : 60}
+                            {creative[key].length}/{limit}
                           </small>
-                        </span>
-                        {key === "headline" ? (
-                          <textarea
-                            value={creative[key]}
-                            maxLength={160}
-                            onChange={(e) => update(key, e.target.value)}
-                            rows={3}
-                          />
-                        ) : (
-                          <input
-                            value={creative[key]}
-                            maxLength={60}
-                            placeholder={
-                              key === "offer"
-                                ? intentCopy[creative.goal].offerHint
-                                : undefined
-                            }
-                            onChange={(e) => update(key, e.target.value)}
-                          />
                         )}
-                      </label>
-                    ),
-                  )}
-                  {(() => {
-                    const match = ctaOptions.find(
-                      (o) => o.toLowerCase() === creative.cta.trim().toLowerCase(),
-                    );
-                    const custom = ctaCustom || !match;
-                    const suggested = intentCopy[creative.goal].ctas;
-                    return (
-                      <label className="field">
-                        <span>
-                          Call to action <small>{creative.cta.length}/60</small>
-                        </span>
-                        <select
-                          value={custom ? "__custom" : match}
-                          onChange={(e) => {
-                            if (e.target.value === "__custom") {
-                              setCtaCustom(true);
-                              return;
-                            }
-                            setCtaCustom(false);
-                            update("cta", e.target.value);
-                          }}
+                      </span>
+                      {key === "headline" ? (
+                        <textarea
+                          value={creative[key]}
+                          maxLength={limit}
+                          rows={3}
+                          aria-invalid={missing || undefined}
+                          onFocus={() => setFocused(key)}
+                          onBlur={() => setFocused(null)}
+                          onChange={(e) => update(key, e.target.value)}
+                        />
+                      ) : (
+                        <input
+                          value={creative[key]}
+                          maxLength={limit}
+                          aria-invalid={missing || undefined}
+                          placeholder={
+                            key === "offer"
+                              ? intentCopy[creative.goal].offerHint
+                              : undefined
+                          }
+                          onFocus={() => setFocused(key)}
+                          onBlur={() => setFocused(null)}
+                          onChange={(e) => update(key, e.target.value)}
+                        />
+                      )}
+                      {missing && (
+                        <small className="field-error" role="alert">
+                          {label} is required. Add it or untick it under More
+                          options.
+                        </small>
+                      )}
+                      {key === "offer" &&
+                        Array.from(creative.offer).length > offerLimit && (
+                          <small className="field-error" role="alert">
+                            Shorten to {offerLimit} characters or fewer.
+                          </small>
+                        )}
+                    </label>
+                  );
+                })}
+                {(() => {
+                  const match = ctaOptions.find(
+                    (o) => o.toLowerCase() === creative.cta.trim().toLowerCase(),
+                  );
+                  const custom = ctaCustom || !match;
+                  const suggested = intentCopy[creative.goal].ctas;
+                  const missing = creative.required.cta && !creative.cta.trim();
+                  return (
+                    <label className="field">
+                      <span>
+                        <span>Button text</span>
+                        {focused === "cta" && (
+                          <small>{creative.cta.length}/60</small>
+                        )}
+                      </span>
+                      <select
+                        value={custom ? "__custom" : match}
+                        onChange={(e) => {
+                          if (e.target.value === "__custom") {
+                            setCtaCustom(true);
+                            return;
+                          }
+                          setCtaCustom(false);
+                          update("cta", e.target.value);
+                        }}
+                      >
+                        <optgroup
+                          label={`Suggested for ${intentCopy[creative.goal].label}`}
                         >
-                          <optgroup
-                            label={`Suggested for ${intentCopy[creative.goal].label}`}
-                          >
-                            {suggested.map((o) => (
+                          {suggested.map((o) => (
+                            <option key={o}>{o}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="All buttons">
+                          {ctaOptions
+                            .filter((o) => !suggested.includes(o))
+                            .map((o) => (
                               <option key={o}>{o}</option>
                             ))}
-                          </optgroup>
-                          <optgroup label="All buttons">
-                            {ctaOptions
-                              .filter((o) => !suggested.includes(o))
-                              .map((o) => (
-                                <option key={o}>{o}</option>
-                              ))}
-                          </optgroup>
-                          <option value="__custom">Custom…</option>
-                        </select>
-                        {custom && (
-                          <input
-                            aria-label="Custom call to action"
-                            value={creative.cta}
-                            maxLength={60}
-                            onChange={(e) => update("cta", e.target.value)}
-                          />
-                        )}
-                      </label>
-                    );
-                  })()}
-                </div>
-                <div className="field-label">
-                  Product image <span>PNG, JPG, WebP</span>
-                </div>
-                <button
-                  className="image-upload"
-                  onClick={() => uploadRef.current?.click()}
-                >
-                  {creative.image ? (
-                    <img src={creative.image} alt="Current product" />
-                  ) : (
-                    <ImagePlus size={28} aria-hidden="true" />
-                  )}
+                        </optgroup>
+                        <option value="__custom">Custom…</option>
+                      </select>
+                      {custom && (
+                        <input
+                          className="custom-cta"
+                          aria-label="Custom button text"
+                          value={creative.cta}
+                          maxLength={60}
+                          aria-invalid={missing || undefined}
+                          onFocus={() => setFocused("cta")}
+                          onBlur={() => setFocused(null)}
+                          onChange={(e) => update("cta", e.target.value)}
+                        />
+                      )}
+                      {missing && (
+                        <small className="field-error" role="alert">
+                          Button text is required.
+                        </small>
+                      )}
+                    </label>
+                  );
+                })()}
+                <div className="field">
                   <span>
-                    <strong>Make it yours</strong>
-                    <small>Upload a product image</small>
+                    <span>
+                      Image
+                      {!creative.required.image && <em> (optional)</em>}
+                    </span>
                   </span>
-                  <ImagePlus size={19} />
-                </button>
+                  <div className="image-row">
+                    {creative.image ? (
+                      <img
+                        className="image-thumb"
+                        src={creative.image}
+                        alt="Current ad image"
+                      />
+                    ) : (
+                      <div className="image-thumb empty" aria-hidden="true">
+                        <ImagePlus size={20} />
+                      </div>
+                    )}
+                    <button
+                      className="button small"
+                      onClick={() => uploadRef.current?.click()}
+                    >
+                      <Upload size={14} /> {creative.image ? "Replace" : "Upload"}
+                    </button>
+                    <details className="menu">
+                      <summary
+                        className="button small"
+                        aria-label="More image options"
+                      >
+                        <MoreHorizontal size={16} />
+                      </summary>
+                      <div className="menu-body">
+                        <button onClick={() => setAssetOpen(true)}>
+                          <Folder size={14} /> Choose from image library
+                        </button>
+                        {creative.image ? (
+                          <button
+                            onClick={() => {
+                              lastImage.current = creative.image;
+                              update("image", "");
+                            }}
+                          >
+                            <Trash2 size={14} /> Remove image
+                          </button>
+                        ) : lastImage.current ? (
+                          <button
+                            onClick={() => update("image", lastImage.current!)}
+                          >
+                            <RotateCcw size={14} /> Undo remove image
+                          </button>
+                        ) : null}
+                      </div>
+                    </details>
+                  </div>
+                  {creative.required.image && !creative.image && (
+                    <small className="field-error" role="alert">
+                      An image is required. Upload one or untick it under More
+                      options.
+                    </small>
+                  )}
+                </div>
                 <input
                   ref={uploadRef}
                   hidden
@@ -926,115 +1011,199 @@ export default function App() {
                     e.target.value = "";
                   }}
                 />
-                <button
-                  className="text-button full"
-                  onClick={() => setAssetOpen(true)}
-                >
-                  <Folder size={14} /> Open image library
-                </button>
-                <details className="details">
+                {creative.image && (
+                  <details className="accordion">
+                    <summary>
+                      <span>Image focus</span>
+                      <ChevronDown size={16} className="chev" />
+                    </summary>
+                    <div className="accordion-body">
+                      {(["focalX", "focalY"] as const).map((key) => (
+                        <label className="range-field" key={key}>
+                          <span>
+                            {key === "focalX" ? "Horizontal" : "Vertical"}{" "}
+                            <b>{creative[key]}%</b>
+                          </span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={creative[key]}
+                            onChange={(e) => update(key, +e.target.value)}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                <details className="accordion">
                   <summary>
-                    Image focal point <ChevronDown size={14} />
+                    <span>Brand colors</span>
+                    <span className="swatches" aria-hidden="true">
+                      {(["accent", "foreground", "background"] as const).map(
+                        (key) => (
+                          <i key={key} style={{ background: creative[key] }} />
+                        ),
+                      )}
+                    </span>
+                    <ChevronDown size={16} className="chev" />
                   </summary>
-                  {(["focalX", "focalY"] as const).map((key) => (
-                    <label className="range-field" key={key}>
-                      <span>
-                        {key === "focalX" ? "Horizontal" : "Vertical"}{" "}
-                        <b>{creative[key]}%</b>
-                      </span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={creative[key]}
-                        onChange={(e) => update(key, +e.target.value)}
-                      />
-                    </label>
-                  ))}
+                  <div className="accordion-body">
+                    <div className="color-fields">
+                      {(["accent", "foreground", "background"] as const).map(
+                        (key) => (
+                          <label key={key}>
+                            <input
+                              type="color"
+                              aria-label={`${key} color`}
+                              value={creative[key]}
+                              onChange={(e) => update(key, e.target.value)}
+                            />
+                            <span>
+                              {key === "foreground"
+                                ? "Text"
+                                : key === "background"
+                                  ? "Canvas"
+                                  : "Accent"}
+                            </span>
+                          </label>
+                        ),
+                      )}
+                    </div>
+                  </div>
                 </details>
-                <div className="divider" />
-                <div className="field-label">
-                  Brand palette <span>Live contrast check</span>
-                </div>
-                <div className="color-fields">
-                  {(["accent", "foreground", "background"] as const).map(
-                    (key) => (
-                      <label key={key}>
-                        <input
-                          type="color"
-                          aria-label={`${key} color`}
+                <details className="accordion">
+                  <summary>
+                    <span>More options</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    {(
+                      [
+                        ["longHeadline", "Long headline", 160, 2],
+                        ["description", "Description", 300, 2],
+                        ["body", "Primary text", 2000, 3],
+                      ] as const
+                    ).map(([key, label, limit, rows]) => (
+                      <label className="field" key={key}>
+                        <span>
+                          <span>
+                            {label} <em>(optional)</em>
+                          </span>
+                          {focused === key && (
+                            <small>
+                              {Array.from(creative[key]).length}/{limit}
+                            </small>
+                          )}
+                        </span>
+                        <textarea
+                          rows={rows}
+                          maxLength={limit}
                           value={creative[key]}
+                          onFocus={() => setFocused(key)}
+                          onBlur={() => setFocused(null)}
                           onChange={(e) => update(key, e.target.value)}
                         />
-                        <span>
-                          {key === "foreground"
-                            ? "Text"
-                            : key === "background"
-                              ? "Canvas"
-                              : "Accent"}
-                        </span>
                       </label>
-                    ),
-                  )}
-                </div>
-                <details className="details">
-                  <summary>
-                    Element priorities <ChevronDown size={14} />
-                  </summary>
-                  <label className="range-field">
-                    <span>
+                    ))}
+                    <label className="field">
                       <span>
-                        <input
-                          type="checkbox"
-                          checked={creative.useGoalPriorities}
-                          onChange={(e) =>
-                            update("useGoalPriorities", e.target.checked)
-                          }
-                        />{" "}
-                        Set by intent ({intentCopy[creative.goal].label})
-                      </span>
-                    </span>
-                  </label>
-                  <p className="help-text">
-                    1 is most important. Higher numbers shrink first, then drop.
-                    Headline (priority {effectivePriorities(creative).priorities.headline}) and CTA
-                    (priority {effectivePriorities(creative).priorities.cta}) are required.
-                    {creative.useGoalPriorities &&
-                      " Untick “Set by intent” to edit priorities by hand."}
-                  </p>
-                  {(["brand", "image", "offer"] as const).map((id) => (
-                    <label className="range-field" key={id}>
-                      <span>
-                        {id === "offer"
-                          ? intentCopy[creative.goal].offerLabel
-                          : priorityLabels[id]}{" "}
-                        <b>Priority {effectivePriorities(creative).priorities[id]}</b>
+                        <span>
+                          Landing page URL <em>(optional)</em>
+                        </span>
                       </span>
                       <input
-                        type="range"
-                        min="1"
-                        max="5"
-                        step="1"
-                        disabled={creative.useGoalPriorities}
-                        value={effectivePriorities(creative).priorities[id]}
-                        onChange={(e) =>
-                          update("priorities", {
-                            ...creative.priorities,
-                            [id]: +e.target.value as Priority,
-                          })
-                        }
+                        type="url"
+                        placeholder="https://yourbrand.com/product"
+                        value={creative.destination}
+                        onChange={(e) => update("destination", e.target.value)}
                       />
+                      {creative.destination.trim() &&
+                        !validDestination(creative.destination.trim()) && (
+                          <small className="field-error" role="alert">
+                            Enter a full http(s) address.
+                          </small>
+                        )}
                     </label>
-                  ))}
+                    <label className="field">
+                      <span>Campaign type</span>
+                      <select
+                        value={creative.campaignType}
+                        onChange={(e) =>
+                          update("campaignType", e.target.value as CampaignType)
+                        }
+                      >
+                        {campaignTypes.map((t) => (
+                          <option key={t} value={t}>
+                            {t === "LeadMagnet" ? "Lead magnet" : t}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <fieldset className="required-set">
+                      <legend>Required elements</legend>
+                      {(Object.keys(requiredLabels) as CreativeKey[]).map(
+                        (k) => (
+                          <label key={k}>
+                            <input
+                              type="checkbox"
+                              checked={creative.required[k]}
+                              disabled={
+                                creative.required[k] &&
+                                Object.values(creative.required).filter(Boolean)
+                                  .length === 1
+                              }
+                              onChange={(e) =>
+                                update("required", {
+                                  ...creative.required,
+                                  [k]: e.target.checked,
+                                })
+                              }
+                            />
+                            {requiredLabels[k]}
+                          </label>
+                        ),
+                      )}
+                      <small>
+                        Required elements are never dropped by the layout
+                        engine. At least one must stay required.
+                      </small>
+                    </fieldset>
+                  </div>
                 </details>
-                <div className="editor-bottom">
-                  <button onClick={() => importRef.current?.click()}>
-                    <Upload size={14} /> Import JSON
-                  </button>
-                  <button onClick={() => void exportJson()}>
-                    <ArrowDownToLine size={14} /> Export JSON
-                  </button>
-                </div>
+                <details className="accordion">
+                  <summary>
+                    <span className="summary-icon">
+                      <Settings2 size={15} /> Project options
+                    </span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body project-actions">
+                    <button
+                      className="button small"
+                      onClick={() => importRef.current?.click()}
+                    >
+                      <Upload size={14} /> Import JSON
+                    </button>
+                    <button
+                      className="button small"
+                      onClick={() => void exportJson()}
+                    >
+                      <ArrowDownToLine size={14} /> Export JSON
+                    </button>
+                    <button
+                      className="button small"
+                      onClick={() => {
+                        setCreative(sample);
+                        setMessage(
+                          "Sample restored. Saved versions are unchanged.",
+                        );
+                      }}
+                    >
+                      <RotateCcw size={14} /> Reset to sample
+                    </button>
+                  </div>
+                </details>
                 <input
                   hidden
                   type="file"
@@ -1049,23 +1218,27 @@ export default function App() {
               <section
                 className="canvas-panel"
                 id="panel-preview"
-                aria-label="Preview creative"
+                aria-label="Live preview"
               >
                 <div className="canvas-toolbar">
                   <div className="canvas-label">
-                    <Layers size={16} />
-                    <strong>Live canvas</strong>
-                    <span className="live-badge">LIVE</span>
+                    <span
+                      className={`live-dot ${valid ? "" : "warning"}`}
+                      aria-hidden="true"
+                    />
+                    <strong>Live preview</strong>
                   </div>
-                  <div className="segmented">
+                  <div className="segmented" role="group" aria-label="Renderer">
                     <button
                       className={renderer === "dom" ? "selected" : ""}
+                      aria-pressed={renderer === "dom"}
                       onClick={() => setRenderer("dom")}
                     >
                       DOM
                     </button>
                     <button
                       className={renderer === "canvas" ? "selected" : ""}
+                      aria-pressed={renderer === "canvas"}
                       onClick={() => setRenderer("canvas")}
                     >
                       Canvas
@@ -1073,65 +1246,49 @@ export default function App() {
                   </div>
                 </div>
                 <div className="canvas-stage">
-                  <div className="stage-top">
-                    <span>{surface.name}</span>
-                    <button
-                      className={`icon-button ${guides ? "active" : ""}`}
-                      aria-label="Toggle safe-area guides"
-                      aria-pressed={guides}
-                      onClick={() => setGuides(!guides)}
-                    >
-                      <Expand size={16} />
-                    </button>
-                  </div>
                   <Preview
                     surface={surface}
                     result={result}
                     renderer={renderer}
                     guides={guides}
-                    maxHeight={440}
+                    maxHeight={460}
                   />
                   <div className="stage-caption">
                     <span>
-                      {surface.width} × {surface.height} px
+                      {surface.width} × {surface.height}
                     </span>
-                    <span className={`status-pill ${valid ? "" : "warning"}`}>
+                    <span
+                      className={`status-pill ${valid ? "" : "warning"}`}
+                      role="status"
+                    >
                       <span />
                       {result.status === "ready"
-                        ? "All elements fit"
+                        ? "Layout fits"
                         : result.status === "adapted"
                           ? "Adapted to fit"
-                          : "Needs attention"}
+                          : "Layout needs attention"}
                     </span>
                     <span>Fit to view</span>
                   </div>
                 </div>
                 <div className="surfaces-section">
                   <div className="surface-heading">
-                    <div>
-                      <h2>One message. Four perspectives.</h2>
-                      <p>Every preview uses the same creative.</p>
-                    </div>
-                    <button
-                      className="text-button"
-                      onClick={() => setCompare(!compare)}
-                    >
-                      {compare ? "Collapse" : "Compare all"}{" "}
-                      <Grid2X2 size={14} />
-                    </button>
+                    <h2>Assignment surfaces</h2>
+                    <p>The same spec, resolved for each surface.</p>
                   </div>
-                  <div className={`surface-grid ${compare ? "expanded" : ""}`}>
+                  <div className="surface-grid">
                     {surfaces.slice(0, 4).map((s, i) => (
                       <button
                         key={s.id}
                         className={`surface-card ${surface.id === s.id ? "selected" : ""}`}
+                        aria-pressed={surface.id === s.id}
                         onClick={() => setSurface(s)}
                       >
                         <div className="surface-mini">
                           <Preview
                             surface={s}
                             result={coreResults[i]}
-                            maxHeight={compare ? 210 : 105}
+                            maxHeight={112}
                           />
                         </div>
                         <strong>{s.name}</strong>
@@ -1142,32 +1299,24 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                </div>
-                <div className="canvas-footer">
-                  <span>
-                    <Check size={13} />
-                    {draftStatus}
-                  </span>
-                  <span>Built around constraints, not breakpoints.</span>
+                  <div className="surface-footer">
+                    <button
+                      className="text-link"
+                      onClick={() => setPage("planner")}
+                    >
+                      View ad platforms <ArrowRight size={14} />
+                    </button>
+                  </div>
                 </div>
               </section>
               <aside
                 className="panel inspector-panel"
                 id="panel-inspect"
-                aria-label="Inspect constraints"
+                aria-label="Layout settings"
               >
-                <div className="panel-title">
-                  <div>
-                    <span className="section-number">02</span>
-                    <h2>Fine-tune the fit</h2>
-                  </div>
-                  <Settings2 size={16} />
-                </div>
-                <p className="panel-description">
-                  Different spaces. Intentional decisions.
-                </p>
+                <h2 className="designer-title">Layout settings</h2>
                 <label className="field">
-                  <span>Surface / placement</span>
+                  <span>Surface / Placement</span>
                   <select
                     value={surface.id}
                     onChange={(e) =>
@@ -1196,7 +1345,7 @@ export default function App() {
                   {(["width", "height"] as const).map((key) => (
                     <NumberField
                       key={key}
-                      label={key}
+                      label={key === "width" ? "Width" : "Height"}
                       unit="px"
                       min={32}
                       max={2400}
@@ -1205,226 +1354,336 @@ export default function App() {
                     />
                   ))}
                 </div>
-                <label className="range-field">
-                  <span>
-                    Safe area (all sides){" "}
-                    <b>
-                      {surface.safeArea.top}/{surface.safeArea.right}/
-                      {surface.safeArea.bottom}/{surface.safeArea.left}px
-                    </b>
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="200"
-                    value={Math.max(...Object.values(surface.safeArea))}
-                    onChange={(e) =>
-                      updateSurface({ safeArea: insets(+e.target.value) })
-                    }
-                  />
-                </label>
-                <div className="two-fields">
-                  <label className="field">
-                    <span>Viewing distance</span>
-                    <select
-                      value={surface.viewingDistance}
-                      onChange={(e) => {
-                        const d = e.target.value as ViewingDistance;
-                        updateSurface({
-                          viewingDistance: d,
-                          minTextSize: Math.max(
-                            surface.minTextSize,
-                            distanceTextFloor[d],
-                          ),
-                        });
-                      }}
-                    >
-                      <option value="near">Near</option>
-                      <option value="medium">Medium</option>
-                      <option value="far">Far</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>Input</span>
-                    <select
-                      value={surface.input}
-                      onChange={(e) => setInput(e.target.value as InputMode)}
-                    >
-                      <option value="touch">Touch</option>
-                      <option value="pointer">Pointer</option>
-                      <option value="none">None</option>
-                    </select>
-                  </label>
-                </div>
-                <button
-                  className={`guide-toggle ${guides ? "active" : ""}`}
-                  onClick={() => setGuides(!guides)}
-                >
-                  <Maximize2 size={15} /> Show safe-area guides{" "}
-                  <span>{guides ? "On" : "Off"}</span>
-                </button>
-                <div className="divider" />
-                <div className="field-label">
-                  <span className="label-icon">
-                    <ShieldCheck size={16} /> Accessibility constraints
-                  </span>
-                </div>
-                <div className="two-fields">
-                  <NumberField
-                    label="Min. text"
-                    unit="px"
-                    min={distanceTextFloor[surface.viewingDistance]}
-                    max={120}
-                    value={surface.minTextSize}
-                    onCommit={(v) => updateSurface({ minTextSize: v })}
-                  />
-                  {surface.input !== "none" ? (
-                    <NumberField
-                      label="Min. tap target"
-                      unit="px"
-                      min={24}
-                      max={200}
-                      value={surface.minTapTarget}
-                      onCommit={(v) => updateSurface({ minTapTarget: v })}
-                    />
-                  ) : (
-                    <p className="help-text">
-                      Display-only surface: no tap target applies.
-                    </p>
-                  )}
-                </div>
-                <label className="field">
-                  <span>Required contrast</span>
-                  <select
-                    value={surface.minContrast}
-                    onChange={(e) =>
-                      updateSurface({ minContrast: +e.target.value })
-                    }
+                <div className="switch-row">
+                  <span id="guides-label">Safe-area guides</span>
+                  <button
+                    role="switch"
+                    aria-checked={guides}
+                    aria-labelledby="guides-label"
+                    className={`switch ${guides ? "on" : ""}`}
+                    onClick={() => setGuides(!guides)}
                   >
-                    <option value={4.5}>4.5:1 · Standard text</option>
-                    <option value={7}>7:1 · Enhanced contrast</option>
-                    <option value={3}>3:1 · Large text exploration</option>
-                  </select>
-                </label>
-                <div
-                  className={`contrast-card ${result.contrast < surface.minContrast ? "failed" : ""}`}
-                >
-                  <ShieldCheck size={20} />
-                  <div>
-                    <strong>
-                      {result.contrast.toFixed(2)}:1 text contrast
-                    </strong>
-                    <small>
-                      {result.contrast >= surface.minContrast
-                        ? "Text / background meets your target"
-                        : "Adjust your palette to meet the target"}
-                    </small>
-                  </div>
+                    <span />
+                  </button>
                 </div>
-                <div className="divider" />
-                <div className="field-label">
-                  Layout decisions <span className="live-badge">EXPLAINED</span>
-                </div>
-                <ol className="decisions">
-                  {[...result.errors, ...result.decisions].map(
-                    (decision, i) => (
-                      <li key={i}>
-                        <span>
-                          {result.errors.length ? (
-                            <Info size={13} />
-                          ) : (
-                            <Check size={13} />
-                          )}
-                        </span>
-                        {decision}
-                      </li>
-                    ),
-                  )}
-                </ol>
-                <details className="details" open>
-                  <summary>
-                    Why each element is here <ChevronDown size={14} />
-                  </summary>
-                  <div className="geometry-list">
-                    {result.elements.map((e) => (
-                      <div key={e.id} className="explain-item">
-                        <div>
-                          <strong>{e.id}</strong>
-                          <span className="role-tag">
-                            {e.role} · priority {e.priority}
-                          </span>
-                          <code>
-                            {Math.round(e.x)}, {Math.round(e.y)} ·{" "}
-                            {Math.round(e.width)} × {Math.round(e.height)}
-                          </code>
-                        </div>
+                <div className="checks">
+                  <h3>Layout checks</h3>
+                  <div
+                    className={`check-card ${valid ? "passed" : "failed"}`}
+                    role="status"
+                  >
+                    {valid ? <Check size={18} /> : <Info size={18} />}
+                    <div>
+                      <strong>
+                        {result.status === "ready"
+                          ? "All checks passed"
+                          : result.status === "adapted"
+                            ? "Checks passed · adapted to fit"
+                            : result.status === "invalid"
+                              ? "Inputs need fixing"
+                              : "Layout does not fit"}
+                      </strong>
+                      {!valid && (
                         <ul>
-                          {e.explanation.map((line, i) => (
-                            <li key={i}>{line}</li>
+                          {result.errors.map((error, i) => (
+                            <li key={i}>{error}</li>
                           ))}
                         </ul>
+                      )}
+                      <small>
+                        {valid
+                          ? "Bounds, overlap, minimum text, tap target and contrast. Not network approval."
+                          : "Export is disabled. Shorten copy, enlarge the surface or relax a constraint below."}
+                      </small>
+                    </div>
+                  </div>
+                </div>
+                <details className="accordion">
+                  <summary>
+                    <span>Accessibility</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <div className="two-fields">
+                      <NumberField
+                        label="Min. text"
+                        unit="px"
+                        min={distanceTextFloor[surface.viewingDistance]}
+                        max={120}
+                        value={surface.minTextSize}
+                        onCommit={(v) => updateSurface({ minTextSize: v })}
+                      />
+                      {surface.input !== "none" ? (
+                        <NumberField
+                          label="Min. tap target"
+                          unit="px"
+                          min={24}
+                          max={200}
+                          value={surface.minTapTarget}
+                          onCommit={(v) => updateSurface({ minTapTarget: v })}
+                        />
+                      ) : (
+                        <p className="help-text">
+                          Display-only surface: no tap target applies.
+                        </p>
+                      )}
+                    </div>
+                    <div className="two-fields">
+                      <label className="field">
+                        <span>Viewing distance</span>
+                        <select
+                          value={surface.viewingDistance}
+                          onChange={(e) => {
+                            const d = e.target.value as ViewingDistance;
+                            updateSurface({
+                              viewingDistance: d,
+                              minTextSize: Math.max(
+                                surface.minTextSize,
+                                distanceTextFloor[d],
+                              ),
+                            });
+                          }}
+                        >
+                          <option value="near">Near</option>
+                          <option value="medium">Medium</option>
+                          <option value="far">Far</option>
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Input</span>
+                        <select
+                          value={surface.input}
+                          onChange={(e) => setInput(e.target.value as InputMode)}
+                        >
+                          <option value="touch">Touch</option>
+                          <option value="pointer">Pointer</option>
+                          <option value="none">None</option>
+                        </select>
+                      </label>
+                    </div>
+                    <label className="field">
+                      <span>Required contrast</span>
+                      <select
+                        value={surface.minContrast}
+                        onChange={(e) =>
+                          updateSurface({ minContrast: +e.target.value })
+                        }
+                      >
+                        <option value={4.5}>4.5:1 · Standard text</option>
+                        <option value={7}>7:1 · Enhanced contrast</option>
+                        <option value={3}>3:1 · Large text exploration</option>
+                      </select>
+                    </label>
+                    <div
+                      className={`contrast-card ${result.contrast < surface.minContrast ? "failed" : ""}`}
+                    >
+                      <ShieldCheck size={20} />
+                      <div>
+                        <strong>
+                          {result.contrast.toFixed(2)}:1 text contrast
+                        </strong>
+                        <small>
+                          {result.contrast >= surface.minContrast
+                            ? "Text / background meets your target"
+                            : "Adjust your palette to meet the target"}
+                        </small>
                       </div>
-                    ))}
-                    {result.omitted.map((o) => (
-                      <div key={o.id} className="explain-item omitted">
-                        <div>
-                          <strong>{o.id}</strong>
-                          <span className="role-tag">
-                            {o.role} · priority {o.priority}
-                          </span>
-                          <code>omitted</code>
-                        </div>
-                      </div>
+                    </div>
+                  </div>
+                </details>
+                <details className="accordion">
+                  <summary>
+                    <span>Element priorities</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <div className="switch-row">
+                      <span id="intent-priorities-label">
+                        Set by goal ({intentCopy[creative.goal].label})
+                      </span>
+                      <button
+                        role="switch"
+                        aria-checked={creative.useGoalPriorities}
+                        aria-labelledby="intent-priorities-label"
+                        className={`switch ${creative.useGoalPriorities ? "on" : ""}`}
+                        onClick={() =>
+                          update("useGoalPriorities", !creative.useGoalPriorities)
+                        }
+                      >
+                        <span />
+                      </button>
+                    </div>
+                    <p className="help-text">
+                      1 is most important. Higher numbers shrink first, then
+                      drop. Headline (priority{" "}
+                      {effectivePriorities(creative).priorities.headline}) and
+                      button (priority{" "}
+                      {effectivePriorities(creative).priorities.cta}) are
+                      required by default.
+                      {creative.useGoalPriorities &&
+                        " Turn off “Set by goal” to edit priorities by hand."}
+                    </p>
+                    {(["brand", "image", "offer"] as const).map((id) => (
+                      <label className="range-field" key={id}>
+                        <span>
+                          {id === "offer"
+                            ? intentCopy[creative.goal].offerLabel
+                            : priorityLabels[id]}{" "}
+                          <b>
+                            Priority{" "}
+                            {effectivePriorities(creative).priorities[id]}
+                          </b>
+                        </span>
+                        <input
+                          type="range"
+                          min="1"
+                          max="5"
+                          step="1"
+                          disabled={creative.useGoalPriorities}
+                          value={effectivePriorities(creative).priorities[id]}
+                          onChange={(e) =>
+                            update("priorities", {
+                              ...creative.priorities,
+                              [id]: +e.target.value as Priority,
+                            })
+                          }
+                        />
+                      </label>
                     ))}
                   </div>
                 </details>
-                <div className="kiosk-demo">
-                  <div className="field-label">
-                    Degradation demo <span className="live-badge">BRIEF</span>
+                <details className="accordion">
+                  <summary>
+                    <span>Layout details</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <label className="range-field">
+                      <span>
+                        Safe area (all sides){" "}
+                        <b>
+                          {surface.safeArea.top}/{surface.safeArea.right}/
+                          {surface.safeArea.bottom}/{surface.safeArea.left}px
+                        </b>
+                      </span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="200"
+                        value={Math.max(...Object.values(surface.safeArea))}
+                        onChange={(e) =>
+                          updateSurface({ safeArea: insets(+e.target.value) })
+                        }
+                      />
+                    </label>
+                    <div className="field-label">Layout decisions</div>
+                    <ol className="decisions">
+                      {[...result.errors, ...result.decisions].map(
+                        (decision, i) => (
+                          <li key={i}>
+                            <span>
+                              {result.errors.length ? (
+                                <Info size={13} />
+                              ) : (
+                                <Check size={13} />
+                              )}
+                            </span>
+                            {decision}
+                          </li>
+                        ),
+                      )}
+                    </ol>
+                    <div className="field-label">Why each element is here</div>
+                    <div className="geometry-list">
+                      {result.elements.map((e) => (
+                        <div key={e.id} className="explain-item">
+                          <div>
+                            <strong>{e.id}</strong>
+                            <span className="role-tag">
+                              {e.role} · priority {e.priority}
+                            </span>
+                            <code>
+                              {Math.round(e.x)}, {Math.round(e.y)} ·{" "}
+                              {Math.round(e.width)} × {Math.round(e.height)}
+                            </code>
+                          </div>
+                          <ul>
+                            {e.explanation.map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                      {result.omitted.map((o) => (
+                        <div key={o.id} className="explain-item omitted">
+                          <div>
+                            <strong>{o.id}</strong>
+                            <span className="role-tag">
+                              {o.role} · priority {o.priority}
+                            </span>
+                            <code>omitted</code>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="help-text">
-                    Shrink the retail kiosk's height. Branding (priority 3)
-                    shrinks, then drops, before the headline and CTA are
-                    touched.
-                  </p>
-                  <label className="range-field">
-                    <span>
-                      Kiosk height{" "}
-                      <b>
-                        {surface.id === "kiosk"
-                          ? surface.height
-                          : kioskPreset.height}
-                        px
-                      </b>
-                    </span>
-                    <input
-                      type="range"
-                      min="140"
-                      max={kioskPreset.height}
-                      step="10"
-                      value={
-                        surface.id === "kiosk"
-                          ? surface.height
-                          : kioskPreset.height
-                      }
-                      onChange={(e) =>
-                        setSurface({ ...kioskPreset, height: +e.target.value })
-                      }
-                    />
-                  </label>
-                  {surface.id === "kiosk" && (
-                    <p className="help-text" role="status">
-                      {result.status === "impossible" ||
-                      result.status === "invalid"
-                        ? "Required content no longer fits: reported as impossible."
-                        : result.omitted.length
-                          ? `Dropped: ${result.omitted.map((o) => `${o.id} (priority ${o.priority})`).join(", ")}. Headline and CTA intact.`
-                          : result.status === "adapted"
-                            ? "All elements kept; lower-priority text reduced."
-                            : "All elements at preferred size."}
+                </details>
+                <details className="accordion">
+                  <summary>
+                    <span>Test smaller sizes</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body kiosk-demo">
+                    <p className="help-text">
+                      Shrink the retail kiosk's height. Lower-priority elements
+                      shrink, then drop, before the headline and button are
+                      touched.
                     </p>
-                  )}
-                </div>
+                    <label className="range-field">
+                      <span>
+                        Kiosk height{" "}
+                        <b>
+                          {surface.id === "kiosk"
+                            ? surface.height
+                            : kioskPreset.height}
+                          px
+                        </b>
+                      </span>
+                      <input
+                        type="range"
+                        min="140"
+                        max={kioskPreset.height}
+                        step="10"
+                        value={
+                          surface.id === "kiosk"
+                            ? surface.height
+                            : kioskPreset.height
+                        }
+                        onChange={(e) =>
+                          setSurface({ ...kioskPreset, height: +e.target.value })
+                        }
+                      />
+                    </label>
+                    {surface.id === "kiosk" && (
+                      <p className="help-text" role="status">
+                        {result.status === "impossible" ||
+                        result.status === "invalid"
+                          ? "Required content no longer fits: reported as impossible."
+                          : result.omitted.length
+                            ? `Dropped: ${result.omitted.map((o) => `${o.id} (priority ${o.priority})`).join(", ")}. Headline and button intact.`
+                            : result.status === "adapted"
+                              ? "All elements kept; lower-priority text reduced."
+                              : "All elements at preferred size."}
+                      </p>
+                    )}
+                    <button
+                      className="button small"
+                      onClick={() => setSurface(surfaces[4])}
+                    >
+                      <SlidersHorizontal size={14} /> Try the constrained banner
+                    </button>
+                  </div>
+                </details>
                 {surface.note && (
                   <p className="placement-note">
                     {surface.note}{" "}
@@ -1435,19 +1694,9 @@ export default function App() {
                     )}
                   </p>
                 )}
-                <button
-                  className="stress-button"
-                  onClick={() => setSurface(surfaces[4])}
-                >
-                  <SlidersHorizontal size={16} />
-                  <span>
-                    Push the limits<small>Try a constrained surface</small>
-                  </span>
-                  <ArrowRight size={15} />
-                </button>
               </aside>
             </div>
-          </>
+          </div>
         ) : (
           <section className="library">
             <div className="library-toolbar">

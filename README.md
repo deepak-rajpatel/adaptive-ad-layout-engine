@@ -1,6 +1,6 @@
 # Omniframe — Adaptive Ad Layout Engine
 
-Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-Surface Ads*. The site opens on the **Layout studio**: one ad spec re-resolved live on the four required surfaces.
+Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-Surface Ads*. The site opens on the **Ad Designer**: creative inputs on the left, one ad spec re-resolved live in the centre (with all four required surfaces below it), and layout settings on the right.
 
 ## Brief checklist
 
@@ -18,7 +18,7 @@ Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-
 | Bonus: unseen 5th surface | Surface menu → *Custom surface* |
 | Bonus: animated transitions | Switch surfaces (respects reduced motion) |
 | Bonus: real text measurement | `src/lib/measure.ts` (Canvas `measureText`) |
-| Bonus: Canvas backend, same resolver | Studio toolbar → DOM / Canvas |
+| Bonus: Canvas backend, same resolver | Ad Designer → Live preview → DOM / Canvas |
 | Bonus: accessibility constraints | Tap-target and contrast rules in the resolver and inspector |
 
 The brief's suggested files map to: `spec.ts` → `src/engine/spec.ts`, `surfaces.ts` → `src/engine/surfaces.ts`, `resolver.ts` → `src/engine/resolver.ts`, `render-dom.ts` → `src/render/dom.ts`, `App.tsx` → `src/App.tsx`.

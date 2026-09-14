@@ -1,0 +1,404 @@
+/* Ad Designer (three-column). Every rule is scoped to .designer so other pages are unaffected. */
+.designer-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.designer-toolbar h1 {
+  font-size: 26px;
+  letter-spacing: -0.8px;
+  font-weight: 700;
+}
+.designer-toolbar p {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.designer-toolbar .heading-actions {
+  padding: 0;
+}
+.designer .workspace {
+  grid-template-columns: 280px minmax(0, 1fr) 280px;
+}
+.designer-title {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin-bottom: 18px;
+}
+.designer .panel {
+  padding: 22px 20px;
+}
+.designer .field > span {
+  font-size: 12px;
+  gap: 8px;
+  /* Sentence case: only the first letter is raised (see .field > span:first-letter). */
+  text-transform: none;
+}
+.designer .field > span *,
+.designer .field small {
+  text-transform: none;
+}
+.designer .field em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--muted);
+}
+.designer .field-error {
+  display: block;
+  color: #b3261e;
+  font-size: 11px;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+.designer [aria-invalid="true"] {
+  border-color: #b3261e;
+}
+.designer .custom-cta {
+  margin-top: 8px;
+}
+
+/* Image row and its option menu */
+.designer .image-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.designer .image-thumb {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  object-fit: cover;
+  background: var(--soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.designer .menu {
+  position: relative;
+}
+.designer .menu > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.designer .menu > summary::-webkit-details-marker {
+  display: none;
+}
+.designer .menu-body {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  display: grid;
+  min-width: 210px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px #292d2322;
+}
+.designer .menu-body button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 6px;
+}
+.designer .menu-body button:hover {
+  background: var(--soft);
+}
+
+/* Accordions (native details: expanded state is announced by assistive tech) */
+.designer .accordion {
+  border-top: 1px solid var(--line);
+}
+.designer .accordion:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+.designer .accordion > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 50px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.designer .accordion > summary::-webkit-details-marker {
+  display: none;
+}
+.designer .accordion > summary > span:first-child {
+  flex: 1;
+}
+.designer .accordion > summary .chev {
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.designer .accordion[open] > summary .chev {
+  transform: rotate(180deg);
+}
+.designer .accordion-body {
+  padding: 2px 0 18px;
+}
+.designer .summary-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.designer .swatches {
+  display: flex;
+  gap: 6px;
+}
+.designer .swatches i {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid #292d2322;
+}
+.designer .required-set {
+  border: 0;
+  padding: 0;
+  margin: 4px 0 0;
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+.designer .required-set legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.designer .required-set label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.designer .required-set input {
+  accent-color: var(--accent);
+}
+.designer .required-set small {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.designer .project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Centre: live preview */
+.designer .canvas-label {
+  font-size: 13px;
+  gap: 10px;
+}
+.designer .live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 4px #edf3e8;
+}
+.designer .live-dot.warning {
+  background: #b85227;
+  box-shadow: 0 0 0 4px #fdeee9;
+}
+.designer .segmented button {
+  font-size: 11px;
+  padding: 7px 14px;
+}
+.designer .canvas-stage {
+  padding: 28px 27px 16px;
+  justify-content: center;
+  gap: 12px;
+}
+.designer .stage-caption {
+  font-size: 11px;
+}
+.designer .surface-heading {
+  display: block;
+}
+.designer .surface-heading h2 {
+  font-size: 15px;
+}
+.designer .surface-heading p {
+  font-size: 11px;
+  margin-top: 4px;
+}
+.designer .surface-mini {
+  height: 132px;
+}
+.designer .surface-card strong {
+  font-size: 12px;
+}
+.designer .surface-card small {
+  font-size: 11px;
+}
+.designer .surface-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.designer .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+/* Right: layout settings */
+.designer .switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  margin: 6px 0 18px;
+}
+.designer .switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border-radius: 11px;
+  background: var(--line);
+  flex-shrink: 0;
+}
+.designer .switch > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px #0003;
+  transition: left 0.15s;
+}
+.designer .switch.on {
+  background: var(--accent);
+}
+.designer .switch.on > span {
+  left: 21px;
+}
+.designer .checks {
+  border-top: 1px solid var(--line);
+  padding: 16px 0 18px;
+}
+.designer .checks h3 {
+  font-size: 13px;
+  margin-bottom: 10px;
+}
+.designer .check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #d7e4cc;
+  background: #eef5e8;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.designer .check-card > svg {
+  color: var(--green);
+  margin-top: 1px;
+}
+.designer .check-card.failed {
+  background: #fdeee9;
+  border-color: #efc2b3;
+}
+.designer .check-card.failed > svg {
+  color: #b3261e;
+}
+.designer .check-card ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+.designer .check-card small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.designer .kiosk-demo .button {
+  margin-top: 6px;
+}
+.designer .placement-note {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 14px;
+}
+
+[data-theme="dark"] .designer .check-card {
+  background: #2a3824;
+  border-color: #3c4d33;
+}
+[data-theme="dark"] .designer .check-card.failed {
+  background: #3d2620;
+  border-color: #6b3a2c;
+}
+[data-theme="dark"] .designer .live-dot {
+  box-shadow: 0 0 0 4px #33402c;
+}
+
+@media (min-width: 1500px) {
+  .designer .workspace {
+    grid-template-columns: 300px minmax(0, 1fr) 300px;
+  }
+}
+/* Intermediate widths: settings move under the preview, in two columns. */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .designer .workspace {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+  .designer .inspector-panel {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 28px;
+    align-items: start;
+  }
+  .designer .inspector-panel > .designer-title,
+  .designer .inspector-panel > .checks,
+  .designer .inspector-panel > .placement-note {
+    grid-column: 1 / -1;
+  }
+  .designer .inspector-panel > .accordion:nth-last-of-type(2) {
+    border-bottom: 1px solid var(--line);
+  }
+}
+@media (max-width: 760px) {
+  .designer-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .designer-toolbar .heading-actions .button {
+    flex: 1;
+  }
+  .designer .surface-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .designer .canvas-stage {
+    min-height: 0;
+    padding: 20px 14px 14px;
+  }
+  .designer .field > span {
+    font-size: 13px;
+  }
+  .designer .accordion > summary {
+    min-height: 52px;
+    font-size: 14px;
+  }
+}

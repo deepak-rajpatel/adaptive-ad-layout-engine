@@ -403,7 +403,7 @@ function PlanCard({
             disabled={!size}
             onClick={onOpenStudio}
           >
-            Open in studio <ArrowRight size={13} />
+            Open in Ad Designer <ArrowRight size={13} />
           </button>
         </div>
       </footer>
