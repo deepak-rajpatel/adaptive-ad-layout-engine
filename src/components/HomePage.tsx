@@ -129,7 +129,7 @@ export function HomePage({
           </button>
           <div className="new-card-links">
             <button className="text-link" onClick={onExample}>
-              Open example
+              Try an example
             </button>
             {importButton}
           </div>

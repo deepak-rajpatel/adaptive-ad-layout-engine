@@ -59,6 +59,8 @@ import "./designer.css";
 import "./workflow.css";
 import { editedAgo } from "./lib/time";
 import { HomePage } from "./components/HomePage";
+import { ExampleChooser } from "./components/ExampleChooser";
+import { exampleCopy, type ExampleAd } from "./engine/examples";
 import {
   CreatePage,
   emptyCreateForm,
@@ -179,6 +181,8 @@ export default function App() {
   const [projectName, setProjectName] = useState(draft.name);
   // Unfinished Create-page inputs survive navigating away (cleared once the ad is created).
   const [createForm, setCreateForm] = useState<CreateForm>(emptyCreateForm);
+  const [exampleOpen, setExampleOpen] = useState(false);
+  const [exampleError, setExampleError] = useState("");
   const [draftSavedAt, setDraftSavedAt] = useState(draft.savedAt);
   const draftWritten = useRef(false);
   // Block body on purpose: some browsers return a Promise from scrollTo, which React
@@ -678,6 +682,20 @@ export default function App() {
       ad.name || "Untitled creative",
     );
     if (created) setCreateForm(emptyCreateForm);
+  }
+  /**
+   * Opens an independent copy of an example on the retail kiosk, after the shared draft
+   * preservation. The chooser closes only if loading succeeded. Create-page inputs are
+   * untouched (they live in their own state), so pending uploads cannot reach the example.
+   */
+  function startFromExample(ex: ExampleAd) {
+    if (loadWork({ creative: exampleCopy(ex), surface: surfaces[3] }, ex.name)) {
+      setExampleOpen(false);
+      return;
+    }
+    setExampleError(
+      "Your current draft could not be kept, so nothing was replaced. Close this, then fix the draft or export it as JSON first.",
+    );
   }
   /** Imports a project file after keeping any unsaved draft (Home and Ad Designer). */
   async function importPreserving(file: File) {
@@ -2168,9 +2186,10 @@ export default function App() {
                 }
                 onContinue={() => setPage("studio")}
                 onCreate={() => setPage("create")}
-                onExample={() =>
-                  loadWork({ creative: sample, surface: surfaces[3] }, "")
-                }
+                onExample={() => {
+                  setExampleError("");
+                  setExampleOpen(true);
+                }}
                 onImport={(file) => void importPreserving(file)}
                 onOpen={openSaved}
                 onViewAll={() => setPage("library")}
@@ -2182,9 +2201,10 @@ export default function App() {
                 form={createForm}
                 onFormChange={setCreateForm}
                 onBack={() => setPage("home")}
-                onExample={() =>
-                  loadWork({ creative: sample, surface: surfaces[3] }, "")
-                }
+                onExample={() => {
+                  setExampleError("");
+                  setExampleOpen(true);
+                }}
                 onCreate={createAd}
               />
             )}
@@ -2328,6 +2348,13 @@ export default function App() {
             }}
           />
         </Modal>
+      )}
+      {exampleOpen && (
+        <ExampleChooser
+          error={exampleError}
+          onUse={startFromExample}
+          onClose={() => setExampleOpen(false)}
+        />
       )}
       {saveOpen && (
         <Modal

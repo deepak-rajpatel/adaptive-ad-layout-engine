@@ -299,7 +299,7 @@ export function CreatePage({
         </div>
         <div className="create-footer">
           <button type="button" className="text-link" onClick={onExample}>
-            Use an example instead
+            Try an example
           </button>
           <button type="submit" className="button primary" disabled={reading}>
             Open Ad Designer <ArrowRight size={16} />

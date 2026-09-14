@@ -5,10 +5,13 @@ export function Modal({
   title,
   close,
   children,
+  className,
 }: {
   title: string;
   close: () => void;
   children: ReactNode;
+  /** Optional class on the dialog, e.g. for a wider layout. */
+  className?: string;
 }) {
   const titleId = useId();
   const ref = useRef<HTMLDialogElement>(null);
@@ -20,6 +23,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      className={className}
       aria-labelledby={titleId}
       onCancel={close}
       onClick={(e) => {

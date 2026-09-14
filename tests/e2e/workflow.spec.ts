@@ -142,6 +142,47 @@ test.describe("work protection", () => {
   });
 });
 
+test.describe("examples", () => {
+  test.use({ viewport: { width: 1440, height: 1000 } });
+
+  test("choose, filter, use and edit an example; the library copy stays unchanged", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Try an example" }).click();
+    const dialog = page.getByRole("dialog", { name: "Choose an example" });
+    await expect(dialog.locator(".example-card")).toHaveCount(8);
+    await shot(page, "examples-chooser");
+    // Closing leaves everything as it was.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await expect(page.getByRole("heading", { name: "Create one ad. Adapt it to multiple screens." })).toBeVisible();
+
+    await page.getByRole("button", { name: "Try an example" }).click();
+    await dialog.getByRole("button", { name: "Traffic", exact: true }).click();
+    await expect(dialog.locator(".example-card")).toHaveCount(2);
+    await dialog
+      .locator('[data-example-id="traffic-small-space-workspace"]')
+      .getByRole("button", { name: "Use this example" })
+      .click();
+    await expect(dialog).toBeHidden();
+    await expect(headline(page)).toHaveValue("Make room for better work.");
+    await expect(page.locator("#panel-edit select").first()).toHaveValue("Consideration");
+    await expect(page.locator(".stage-caption")).toContainText("1080 × 1080");
+    await expect(page.locator(".designer .surface-card .preview-frame")).toHaveCount(4);
+
+    await headline(page).fill("My own workspace headline");
+    await nav(page, "Home");
+    await page.getByRole("button", { name: "Try an example" }).click();
+    await dialog
+      .locator('[data-example-id="traffic-small-space-workspace"]')
+      .getByRole("button", { name: "Use this example" })
+      .click();
+    // The edited draft was kept, and the example opens as originally defined.
+    await expect(headline(page)).toHaveValue("Make room for better work.");
+    await nav(page, "My creatives");
+    await expect(page.getByRole("heading", { name: "Workspace article (draft)" })).toBeVisible();
+  });
+});
+
 test.describe("phone", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
