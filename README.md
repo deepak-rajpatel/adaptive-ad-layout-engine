@@ -1,5 +1,9 @@
 # Omniframe — Adaptive Ad Layout Engine
 
+The product now opens in a **Creative planner**: upload an original image or video, inspect its dimensions and duration, compare 11 planning profiles across Meta, Google, Taboola, LinkedIn and TikTok, and review illustrative native previews. Add a campaign goal, copy and destination, inspect crop loss and missing inputs, export a JSON placement plan, or send an image profile into the constraint-driven layout studio. Existing `?surface=...` links still open the studio directly.
+
+Planner fields save locally as a workspace brief. They are not attached to named creative versions or synced to Supabase. Original planner image dimensions are preserved; videos remain local to the current session. Compatibility is a planning check, not approval to launch. See [the creative-first architecture and remaining scope](docs/CREATIVE_FIRST.md).
+
 [Live studio](https://adaptive-ad-layout-engine.vercel.app/) · [Source](https://github.com/deepak-rajpatel/adaptive-ad-layout-engine) · [Architecture](ARCHITECTURE.md) · [Verification](VERIFICATION.md)
 
 One declarative ad spec, resolved by a TypeScript constraint engine into genuinely different layouts for a tall phone, a wide broadcast lower-third, a square retail kiosk, and any other surface you describe. No per-surface templates, no CSS breakpoints deciding geometry, no uniform scaling.

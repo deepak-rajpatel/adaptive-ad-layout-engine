@@ -61,6 +61,7 @@ import { Preview } from "./components/Preview";
 import { AssetLibrary } from "./components/AssetLibrary";
 import { Modal } from "./components/Modal";
 import { NumberField } from "./components/NumberField";
+import { CreativePlanner } from "./components/CreativePlanner";
 
 function initialDraft() {
   let draft: { creative: Creative; surface: Surface };
@@ -105,7 +106,11 @@ const priorityLabels: Record<"brand" | "image" | "price", string> = {
 export default function App() {
   const [creative, setCreative] = useState<Creative>(draft.creative);
   const [surface, setSurface] = useState<Surface>(draft.surface);
-  const [page, setPage] = useState<"studio" | "library">("studio");
+  const [page, setPage] = useState<"planner" | "studio" | "library">(() =>
+    new URLSearchParams(window.location.search).has("surface")
+      ? "studio"
+      : "planner",
+  );
   const [mobileTab, setMobileTab] = useState("preview");
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
@@ -520,6 +525,12 @@ export default function App() {
         </button>
         <nav aria-label="Main navigation">
           <button
+            className={page === "planner" ? "nav-active" : ""}
+            onClick={() => setPage("planner")}
+          >
+            Creative planner
+          </button>
+          <button
             className={page === "studio" ? "nav-active" : ""}
             onClick={() => setPage("studio")}
           >
@@ -578,12 +589,18 @@ export default function App() {
           <div>
             <div className="eyebrow">
               <span className="status-dot" />{" "}
-              {page === "studio"
-                ? "THE ADAPTIVE CREATIVE STUDIO"
-                : "YOUR CREATIVE LIBRARY"}
+              {page === "planner"
+                ? "THE CREATIVE-FIRST WORKSPACE"
+                : page === "studio"
+                  ? "THE ADAPTIVE CREATIVE STUDIO"
+                  : "YOUR CREATIVE LIBRARY"}
             </div>
             <h1>
-              {page === "studio" ? (
+              {page === "planner" ? (
+                <>
+                  One asset. <span>More possibilities.</span>
+                </>
+              ) : page === "studio" ? (
                 <>
                   One creative. <span>Every surface.</span>
                 </>
@@ -594,9 +611,11 @@ export default function App() {
               )}
             </h1>
             <p>
-              {page === "studio"
-                ? "Shape your message once. Watch the layout find its fit."
-                : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
+              {page === "planner"
+                ? "Discover placements, refine your message, and build with confidence."
+                : page === "studio"
+                  ? "Shape your message once. Watch the layout find its fit."
+                  : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
             </p>
           </div>
           <div className="heading-actions">
@@ -630,7 +649,38 @@ export default function App() {
             )}
           </div>
         </section>
-        {page === "studio" ? (
+        <div hidden={page !== "planner"}>
+          <CreativePlanner
+            creative={creative}
+            onChange={setCreative}
+            onOpenStudio={(p) => {
+              setSurface({
+                id: `planned-${p.id}`,
+                name: `${p.network} · ${p.name} concept`,
+                width: p.width,
+                height: p.height,
+                safeArea:
+                  p.container === "Vertical"
+                    ? { top: 250, right: 80, bottom: 340, left: 60 }
+                    : insets(
+                        Math.max(
+                          8,
+                          Math.round(Math.min(p.width, p.height) * 0.04),
+                        ),
+                      ),
+                minTextSize: p.width >= 1000 ? 24 : 12,
+                minContrast: 4.5,
+                viewingDistance: "near",
+                input: "none",
+                category: "Creative planning",
+                source: p.source,
+                note: "Composed concept. Native networks receive media and copy separately; this canvas is not a submission-ready native ad.",
+              });
+              setPage("studio");
+            }}
+          />
+        </div>
+        {page === "planner" ? null : page === "studio" ? (
           <>
             <div
               className="mobile-tabs"
@@ -826,9 +876,9 @@ export default function App() {
                     Element priorities <ChevronDown size={14} />
                   </summary>
                   <p className="help-text">
-                    1 is most important. Higher numbers shrink first, then
-                    drop. Headline (priority {creative.priorities.headline}) and
-                    CTA (priority {creative.priorities.cta}) are required.
+                    1 is most important. Higher numbers shrink first, then drop.
+                    Headline (priority {creative.priorities.headline}) and CTA
+                    (priority {creative.priorities.cta}) are required.
                   </p>
                   {(["brand", "image", "price"] as const).map((id) => (
                     <label className="range-field" key={id}>
@@ -999,6 +1049,9 @@ export default function App() {
                       setSurface(surfaces.find((s) => s.id === e.target.value)!)
                     }
                   >
+                    {!surfaces.some((s) => s.id === surface.id) && (
+                      <option value={surface.id}>{surface.name}</option>
+                    )}
                     {Array.from(new Set(surfaces.map((s) => s.category))).map(
                       (category) => (
                         <optgroup key={category} label={category}>
@@ -1450,8 +1503,8 @@ export default function App() {
         )}
         <footer className="site-footer">
           <span>
-            <span className="footer-mark">o</span> omniframe · Create once. Adapt
-            with intention.
+            <span className="footer-mark">o</span> omniframe · Create once.
+            Adapt with intention.
           </span>
           <a
             href="https://github.com/deepak-rajpatel/adaptive-ad-layout-engine"
