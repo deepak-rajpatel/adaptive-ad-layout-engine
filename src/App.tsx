@@ -109,15 +109,17 @@ const priorityLabels: Record<"brand" | "image" | "offer", string> = {
 export default function App() {
   const [creative, setCreative] = useState<Creative>(draft.creative);
   const [surface, setSurface] = useState<Surface>(draft.surface);
+  // The assignment demo (studio) is the landing page; ?view=platforms opens
+  // the ad-platform planner extension directly.
   const [page, setPage] = useState<"planner" | "studio" | "library">(() =>
-    new URLSearchParams(window.location.search).has("surface")
-      ? "studio"
-      : "planner",
+    new URLSearchParams(window.location.search).get("view") === "platforms"
+      ? "planner"
+      : "studio",
   );
   const [mobileTab, setMobileTab] = useState("preview");
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
-  const [compare, setCompare] = useState(false);
+  const [compare, setCompare] = useState(true);
   const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
   const [draftStatus, setDraftStatus] = useState("Draft restored");
@@ -530,16 +532,16 @@ export default function App() {
         </button>
         <nav aria-label="Main navigation">
           <button
-            className={page === "planner" ? "nav-active" : ""}
-            onClick={() => setPage("planner")}
-          >
-            Creative planner
-          </button>
-          <button
             className={page === "studio" ? "nav-active" : ""}
             onClick={() => setPage("studio")}
           >
-            Studio
+            Layout studio
+          </button>
+          <button
+            className={page === "planner" ? "nav-active" : ""}
+            onClick={() => setPage("planner")}
+          >
+            Ad platforms <span className="count">Extension</span>
           </button>
           <button
             className={page === "library" ? "nav-active" : ""}
@@ -595,9 +597,9 @@ export default function App() {
             <div className="eyebrow">
               <span className="status-dot" />{" "}
               {page === "planner"
-                ? "THE CREATIVE-FIRST WORKSPACE"
+                ? "EXTENSION · AD PLATFORM PLANNER"
                 : page === "studio"
-                  ? "THE ADAPTIVE CREATIVE STUDIO"
+                  ? "ADAPTIVE LAYOUT ENGINE · ONE SPEC, FOUR SURFACES"
                   : "YOUR CREATIVE LIBRARY"}
             </div>
             <h1>
@@ -617,9 +619,9 @@ export default function App() {
             </h1>
             <p>
               {page === "planner"
-                ? "Discover placements, refine your message, and build with confidence."
+                ? "The same engine applied to real Meta, Google, Taboola and LinkedIn placements."
                 : page === "studio"
-                  ? "Shape your message once. Watch the layout find its fit."
+                  ? "Edit the ad once. Every surface re-resolves live. Shrink the kiosk in the inspector to watch degradation."
                   : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
             </p>
           </div>

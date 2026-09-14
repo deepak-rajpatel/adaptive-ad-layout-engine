@@ -2181,6 +2181,15 @@ dialog::backdrop {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+.plan-more {
+  margin: 8px 0;
+}
+.plan-more > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, inherit);
+}
 .plan-toggles {
   display: flex;
   flex-wrap: wrap;

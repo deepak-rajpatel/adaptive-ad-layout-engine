@@ -1,12 +1,31 @@
 # Omniframe — Adaptive Ad Layout Engine
 
-The product opens in a **Creative planner**. One set of copy, plus an optional image, generates every verified placement: 27 across Meta, Google (including 13 display banners), Taboola, LinkedIn and the four assignment surfaces.
-- **Nothing is hidden.** The goal, network and status controls only re-rank, group and filter.
-- **Composed placements** (banners, Stories, assignment surfaces) run through the same layout engine.
-- **Platform-assembled placements** (feeds, Taboola, LinkedIn) get a checked crop and copy-length checks.
-- **Export** PNGs or a JSON report, or open any placement in the layout studio. Existing `?surface=...` links still open the studio directly.
+Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-Surface Ads*. The site opens on the **Layout studio**: one ad spec re-resolved live on the four required surfaces.
 
-Planner fields are part of the saved project (schema 3). Every size and limit comes from an official source recorded in [docs/catalog-verification.md](docs/catalog-verification.md). TikTok is listed but not buildable until its specs are verified. Video is out of scope; the engine composes static creatives. Results are planning checks, not network approval. Background and decisions: [docs/DECISIONS.md](docs/DECISIONS.md) and [docs/CREATIVE_FIRST.md](docs/CREATIVE_FIRST.md).
+## Brief checklist
+
+| Requirement | Where to see it |
+| --- | --- |
+| One declarative spec (headline, image, price, CTA, branding) | [The spec](#the-spec) · `src/engine/spec.ts` |
+| Surface profiles with real constraints (safe area, min text, tap target, viewing distance) | `src/engine/surfaces.ts` · inspector panel |
+| Genuine resolver, no per-surface branches | `src/engine/resolver.ts` · [ARCHITECTURE.md](ARCHITECTURE.md#the-algorithm) |
+| Surface picker, 4 surfaces, same spec | Studio: the four cards under the preview (compared side by side by default) |
+| Meaningfully different arrangements | Each surface card names the arrangement the resolver chose for it |
+| Intentionally constrained surface, clean degradation | Inspector → degradation demo (drag the kiosk height), or [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520); the *Constrained banner* preset |
+| No overlap / clipping | `geometryErrors()` on every candidate; `npm test`, `verify.html` |
+| Typed spec, surfaces and output; invalid input rejected | `tests/types.test.ts` (compile-time), `validateSpec` / `validateSurface` (runtime) |
+| Spec → resolution → output → rendering separation | `src/engine/*` (no React/DOM, enforced by a test) → `src/render/dom.ts`, `src/render/canvas.ts` |
+| Bonus: unseen 5th surface | Surface menu → *Custom surface* |
+| Bonus: animated transitions | Switch surfaces (respects reduced motion) |
+| Bonus: real text measurement | `src/lib/measure.ts` (Canvas `measureText`) |
+| Bonus: Canvas backend, same resolver | Studio toolbar → DOM / Canvas |
+| Bonus: accessibility constraints | Tap-target and contrast rules in the resolver and inspector |
+
+The brief's suggested files map to: `spec.ts` → `src/engine/spec.ts`, `surfaces.ts` → `src/engine/surfaces.ts`, `resolver.ts` → `src/engine/resolver.ts`, `render-dom.ts` → `src/render/dom.ts`, `App.tsx` → `src/App.tsx`.
+
+## Extension: ad-platform planner
+
+The **Ad platforms** tab (or `?view=platforms`) is beyond the brief. It applies the same engine to 27 verified placements (Meta, Google, Taboola, LinkedIn plus the four assignment surfaces), with crop checks, copy-length checks and PNG export. Sources: [docs/catalog-verification.md](docs/catalog-verification.md). Results are planning checks, not network approval; TikTok is not buildable until verified. Details: [docs/CREATIVE_FIRST.md](docs/CREATIVE_FIRST.md), [docs/DECISIONS.md](docs/DECISIONS.md).
 
 [Live studio](https://adaptive-ad-layout-engine.vercel.app/) · [Source](https://github.com/deepak-rajpatel/adaptive-ad-layout-engine) · [Architecture](ARCHITECTURE.md) · [Verification](VERIFICATION.md)
 

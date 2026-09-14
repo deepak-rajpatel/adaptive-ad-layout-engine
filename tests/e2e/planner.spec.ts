@@ -12,8 +12,9 @@ async function cardIds(page: Page, scope = page.locator(".planner-matrix")) {
   );
 }
 async function openPlanner(page: Page) {
-  await page.goto("/");
+  await page.goto("/?view=platforms");
   await expect(page.locator(".plan-summary")).toContainText(`${placements.length} placements`);
+  await page.getByText("View options", { exact: true }).click();
 }
 const groupBy = (page: Page, name: string) =>
   page.getByRole("group", { name: "Group by" }).getByRole("button", { name, exact: true }).click();

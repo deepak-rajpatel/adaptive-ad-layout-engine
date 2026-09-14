@@ -878,6 +878,10 @@ export function CreativePlanner({
                   ))}
                 </select>
               </label>
+            </div>
+            <details className="plan-more">
+              <summary>View options</summary>
+            <div className="plan-toolbar">
               <div className="plan-segmented" role="group" aria-label="Group by">
                 {(Object.keys(groupLabels) as GroupBy[]).map((g) => (
                   <button
@@ -962,6 +966,7 @@ export function CreativePlanner({
                 Safe-area guides
               </label>
             </div>
+            </details>
             <p className="plan-summary" aria-live="polite">
               {result ? (
                 <>
