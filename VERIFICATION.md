@@ -97,6 +97,26 @@ Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/
   - upload line: "Your image meets every supported crop's minimum resolution. Some placements will still need cropping."
 - **Not checked in a browser:** dragging the "Adjust crop" sliders (the headless check cannot interact).
 
+**Step 8: PNG export and report**
+- `npm run build` passed.
+- `npm test` 79/79 passed across 10 files. New: `tests/export.test.ts`.
+- **Export tests:**
+  - the batch exports exactly the placements with a PNG available and gives a reason for every skip (including a copy-only fixture);
+  - composed creatives are named `{id}-{w}x{h}.png` at surface size;
+  - image assets are named `{id}-{w}x{h}-image-asset.png`;
+  - an 800 × 800 source exports Meta feed at 800 × 800, never enlarged to the recommended 1440;
+  - with no image, Meta feed is skipped ("Needs an image") while text-only banners still export;
+  - the batch is limited to the selection when one exists.
+- **Real-browser export check (`verify-export.html`, headless Edge 153, sample 1254 × 1254):**
+  - every exportable file is drawn with the app's `renderExportCanvas` and encoded as PNG;
+  - each file's width and height are read from its PNG header;
+  - **27 files: 18 composed creatives, 9 image assets; 0 size mismatches, 0 non-PNG, 0 errors, 0 skipped.**
+  - The headless snapshot is taken right after the page's load event, so this check loads the source image in the page and encodes synchronously with `toDataURL`. The app encodes the same canvas with `toBlob`.
+- **File-size finding:** Google's uploaded display ads are limited to 150 KB. Two exported banners exceed it: 300 × 600 (~152 KB) and 300 × 1050 (~298 KB). Cards show the 150 KB note, but file size is not yet checked automatically. Responsive display, Performance Max and Demand Gen images have 5 MB limits and are within them.
+- **Planner smoke check (headless Edge):** "Export PNGs (27)"; 18 PNG and 9 image-asset download links; no card without a PNG for the sample.
+- **Not checked in a browser:** clicking the export buttons and the browser actually saving the files (the headless check cannot interact). The app's `toBlob` encoding path was not run headlessly. The stall seen with it happened in a run that also used async image decoding, so it was never isolated.
+- Geometry harness: 25 presets, 0 problems.
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

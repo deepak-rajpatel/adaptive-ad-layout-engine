@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Planner export verification</title>
+  </head>
+  <body>
+    <!-- Loaded before the load event so the check can draw without async decoding. -->
+    <img id="source" src="/headphones.jpg" alt="" hidden />
+    <pre id="out">Rendering exports…</pre>
+    <script type="module" src="/scripts/verify-export.ts"></script>
+  </body>
+</html>

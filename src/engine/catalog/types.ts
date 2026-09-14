@@ -120,6 +120,11 @@ export interface Issue {
   message: string;
 }
 
+/** Whether a PNG can be exported, and what it is (E3). Every plan is always in the report. */
+export type PngExport =
+  | { available: true; kind: "composed-creative" | "image-asset" }
+  | { available: false; reason: string };
+
 export interface PlacementPlan {
   placement: Placement;
   format: Format;
@@ -139,6 +144,7 @@ export interface PlacementPlan {
    * to meet its minimum; at most 1 when already met. Null when no crop applies.
    */
   minimumScale: number | null;
+  pngExport: PngExport;
   issues: Issue[];
   notes: string[];
 }

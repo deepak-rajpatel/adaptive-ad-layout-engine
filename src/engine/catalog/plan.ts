@@ -15,6 +15,7 @@ import type {
   Issue,
   Placement,
   PlacementPlan,
+  PngExport,
   Size,
 } from "./types";
 
@@ -149,6 +150,7 @@ export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan
     retainedArea: 0,
     crop: null,
     minimumScale: null,
+    pngExport: { available: false, reason: "" },
     issues,
     notes,
   };
@@ -220,7 +222,72 @@ export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan
     issues.push({ severity: "error", field: "destination", message: "Add a valid HTTP or HTTPS destination URL." });
   const order = { error: 0, warning: 1, info: 2 };
   issues.sort((a, b) => order[a.severity] - order[b.severity]);
+  plan.pngExport = pngExportFor(plan);
   return plan;
+}
+
+/** E3: copy problems never block a PNG; geometry and missing inputs do. */
+function pngExportFor(plan: PlacementPlan): PngExport {
+  const tooSmall = "The image is below this placement's minimum resolution.";
+  if (plan.fit === "Needs image") return { available: false, reason: "Needs an image." };
+  if (plan.placement.surface) {
+    if (plan.fit === "Unsupported") return { available: false, reason: tooSmall };
+    return plan.layoutStatus === "ready" || plan.layoutStatus === "adapted"
+      ? { available: true, kind: "composed-creative" }
+      : { available: false, reason: "No valid layout at this size." };
+  }
+  if (plan.fit === "Text only")
+    return { available: false, reason: "Copy-only placement: included in the plan report." };
+  if (plan.fit === "Unsupported") return { available: false, reason: tooSmall };
+  return { available: true, kind: "image-asset" };
+}
+
+export interface ExportFile {
+  plan: PlacementPlan;
+  name: string;
+  kind: "composed-creative" | "image-asset";
+  width: number;
+  height: number;
+}
+export interface BatchExport {
+  files: ExportFile[];
+  skipped: { plan: PlacementPlan; reason: string }[];
+}
+/**
+ * Files for the selected placements (all when none are selected). Composed creatives export at
+ * surface size; image assets at the recommended size, never enlarged beyond the source crop.
+ */
+export function batchExport(plans: readonly PlacementPlan[], selected: readonly string[] = []): BatchExport {
+  const chosen = selected.length ? plans.filter((p) => selected.includes(p.placement.id)) : plans;
+  const files: ExportFile[] = [];
+  const skipped: BatchExport["skipped"] = [];
+  for (const plan of chosen) {
+    const e = plan.pngExport;
+    if (!e.available) {
+      skipped.push({ plan, reason: e.reason });
+      continue;
+    }
+    let width: number;
+    let height: number;
+    if (e.kind === "composed-creative") {
+      ({ width, height } = plan.layout!);
+    } else {
+      const rec = plan.chosenSize!.recommended;
+      const s = Math.min(1, plan.crop!.width / rec.width);
+      width = Math.round(rec.width * s);
+      height = Math.round(rec.height * s);
+    }
+    const suffix = e.kind === "image-asset" ? "-image-asset" : "";
+    files.push({ plan, kind: e.kind, width, height, name: `${plan.placement.id}-${width}x${height}${suffix}.png` });
+  }
+  return { files, skipped };
+}
+/** "Skipped 5: 3 × Copy-only placement…; 2 × Needs an image." */
+export function summarizeSkipped(skipped: BatchExport["skipped"]): string {
+  if (!skipped.length) return "";
+  const counts = new Map<string, number>();
+  for (const s of skipped) counts.set(s.reason, (counts.get(s.reason) ?? 0) + 1);
+  return `Skipped ${skipped.length}: ${[...counts].map(([reason, n]) => `${n} × ${reason.replace(/\.$/, "")}`).join("; ")}.`;
 }
 
 export interface UploadRecommendation {

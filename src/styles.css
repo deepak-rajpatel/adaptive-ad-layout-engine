@@ -2334,6 +2334,21 @@ dialog::backdrop {
   gap: 6px;
   align-items: center;
 }
+.planner-export-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.plan-card-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.plan-card-actions .text-button {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
 .crop-tools {
   display: grid;
   gap: 8px;

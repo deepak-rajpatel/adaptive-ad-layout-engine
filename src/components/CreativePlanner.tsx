@@ -9,7 +9,14 @@ import {
   Upload,
 } from "lucide-react";
 import { networks } from "../engine/catalog/data";
-import { planAll, uploadRecommendation } from "../engine/catalog/plan";
+import {
+  batchExport,
+  planAll,
+  summarizeSkipped,
+  uploadRecommendation,
+  type BatchExport,
+  type ExportFile,
+} from "../engine/catalog/plan";
 import type { CropRect } from "../engine/crop";
 import {
   fitStatuses,
@@ -32,6 +39,7 @@ import {
   type CreativeKey,
 } from "../lib/creative";
 import { measure } from "../lib/measure";
+import { renderExport } from "../lib/exporter";
 import { download } from "../lib/persistence";
 import { renderDom } from "../render/dom";
 
@@ -242,6 +250,7 @@ function PlanCard({
   onToggle,
   onOpenStudio,
   onFocus,
+  onDownload,
 }: {
   plan: PlacementPlan;
   creative: Creative;
@@ -253,6 +262,7 @@ function PlanCard({
   onOpenStudio: () => void;
   /** Sets this placement's crop focus; null resets it to the creative default. */
   onFocus: (focal: { x: number; y: number } | null) => void;
+  onDownload: () => void;
 }) {
   const p = plan.placement;
   const served = [...new Set(plan.objectives.map((o) => o.goal))];
@@ -374,17 +384,28 @@ function PlanCard({
           </a>
         </details>
       )}
+      {!plan.pngExport.available && (
+        <p className="plan-size">No PNG: {plan.pngExport.reason}</p>
+      )}
       <footer>
         <label>
           <input type="checkbox" checked={selected} onChange={onToggle} /> Select
         </label>
-        <button
-          className="text-button"
-          disabled={!size}
-          onClick={onOpenStudio}
-        >
-          Open in studio <ArrowRight size={13} />
-        </button>
+        <div className="plan-card-actions">
+          {plan.pngExport.available && (
+            <button className="text-button" onClick={onDownload}>
+              <ArrowDownToLine size={13} />{" "}
+              {plan.pngExport.kind === "image-asset" ? "Image asset" : "PNG"}
+            </button>
+          )}
+          <button
+            className="text-button"
+            disabled={!size}
+            onClick={onOpenStudio}
+          >
+            Open in studio <ArrowRight size={13} />
+          </button>
+        </div>
       </footer>
     </article>
   );
@@ -410,6 +431,7 @@ export function CreativePlanner({
   const [selectedOnly, setSelectedOnly] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [guides, setGuides] = useState(false);
+  const [exportStatus, setExportStatus] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadSequence = useRef(0);
   const lastImage = useRef<string | null>(null);
@@ -448,6 +470,11 @@ export function CreativePlanner({
   const hasImage = !!src && !!asset;
   const uploadRec =
     result && hasImage ? uploadRecommendation(result.plans, asset) : null;
+  // Selected cards when any are selected, otherwise every placement.
+  const batch = useMemo(
+    () => batchExport(result?.plans ?? [], selected),
+    [result, selected],
+  );
   const requiredCount = Object.values(creative.required).filter(Boolean).length;
   const plans = result?.plans ?? [];
   const visible = plans.filter(
@@ -495,6 +522,37 @@ export function CreativePlanner({
       if (sequence === uploadSequence.current) setBusy(false);
     }
   }
+  /** Renders and downloads files one after another (no zip dependency). */
+  async function exportFiles(
+    files: ExportFile[],
+    skipped: BatchExport["skipped"] = [],
+  ) {
+    const skippedText = summarizeSkipped(skipped);
+    if (!files.length) {
+      setExportStatus(`Nothing to export. ${skippedText}`.trim());
+      return;
+    }
+    setBusy(true);
+    let done = 0;
+    try {
+      for (const f of files) {
+        download(await renderExport(f, creative.image), f.name);
+        done++;
+        setExportStatus(`Exporting ${done} of ${files.length}…`);
+        // Browsers may block rapid consecutive downloads; space them out.
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      setExportStatus(
+        `Exported ${done} PNG${done === 1 ? "" : "s"}. ${skippedText}`.trim(),
+      );
+    } catch (e) {
+      setExportStatus(
+        `Export stopped after ${done} file${done === 1 ? "" : "s"}: ${e instanceof Error ? e.message : "unknown error"}.`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   function exportPlan() {
     const report = {
       version: 2,
@@ -523,6 +581,7 @@ export function CreativePlanner({
         recommendedForGoal: p.recommendedForGoal,
         fit: p.fit,
         layoutStatus: p.layoutStatus,
+        pngExport: p.pngExport,
         chosenSize: p.chosenSize?.label ?? null,
         retainedArea: p.retainedArea,
         issues: p.issues,
@@ -782,13 +841,28 @@ export function CreativePlanner({
                   Planning checks from verified specs, not network approval.
                 </p>
               </div>
-              <button
-                className="button small"
-                disabled={!result || busy}
-                onClick={exportPlan}
-              >
-                <ArrowDownToLine size={15} /> Export report
-              </button>
+              <div className="planner-export-buttons">
+                <button
+                  className="button small"
+                  disabled={!result || busy || !batch.files.length}
+                  title={
+                    selected.length
+                      ? "Exports the selected placements"
+                      : "Exports every placement with a PNG"
+                  }
+                  onClick={() => void exportFiles(batch.files, batch.skipped)}
+                >
+                  <ArrowDownToLine size={15} /> Export PNGs (
+                  {batch.files.length})
+                </button>
+                <button
+                  className="button small"
+                  disabled={!result || busy}
+                  onClick={exportPlan}
+                >
+                  <ArrowDownToLine size={15} /> Export report
+                </button>
+              </div>
             </div>
             <div className="plan-toolbar">
               <label>
@@ -905,6 +979,11 @@ export function CreativePlanner({
                 "Planning placements…"
               )}
             </p>
+            {exportStatus && (
+              <p className="planner-note plan-upload" role="status">
+                {exportStatus}
+              </p>
+            )}
             {result && !src && (
               <p className="planner-note">
                 Add an image to unlock{" "}
@@ -935,6 +1014,9 @@ export function CreativePlanner({
                       creative={deferred}
                       hasImage={hasImage}
                       image={hasImage ? asset : null}
+                      onDownload={() =>
+                        void exportFiles(batchExport([p], [p.placement.id]).files)
+                      }
                       onFocus={(f) => {
                         const { [p.placement.id]: _, ...rest } =
                           creative.focalOverrides;

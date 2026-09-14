@@ -434,6 +434,11 @@ Each placement plan carries separate fields.
 - [x] Step 7: "Adjust crop" focus per placement (with reset), crop-loss preview on "Needs crop" cards, and the "Upload at least W×H" recommendation.
   - **How the recommendation works:** each plan records how much the source must grow for at least one accepted size to meet its minimum. The recommendation is the largest of those needs, at the current aspect ratio.
   - Placements that no resolution can fix (impossible layouts) are listed separately.
+- [x] Step 8: PNG export (composed creatives + image assets), per-card downloads, "Export PNGs" for the selected cards or all of them, a skipped summary, and report v2 with each placement's PNG availability.
+  - **Downloads run one after another, not as a zip.** A zip library would need a new dependency. The spec allows sequential downloads as the fallback. Browsers may ask before allowing many downloads.
+  - **Image assets are never enlarged.** They export at the recommended size, or at the source crop's own size when that is smaller.
+  - **Known limitation:** Google's 150 KB limit for uploaded banners is shown as a note but not checked. Two sample banners exceed it (300 × 600, 300 × 1050).
+  - **Verification page:** `verify-export.html` renders every export in a real browser and checks its PNG size (27/27 match).
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.
