@@ -2334,6 +2334,54 @@ dialog::backdrop {
   gap: 6px;
   align-items: center;
 }
+.crop-tools {
+  display: grid;
+  gap: 8px;
+}
+.crop-preview {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  margin: 0 auto;
+  max-width: 100%;
+}
+.crop-preview img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.crop-keep {
+  position: absolute;
+  outline: 2px solid #fff;
+  box-shadow: 0 0 0 9999px #0008;
+  pointer-events: none;
+}
+.crop-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+}
+.crop-actions .plan-served {
+  margin-top: 0;
+}
+.crop-adjust {
+  display: grid;
+  gap: 6px;
+  font-size: 11px;
+}
+.crop-adjust label {
+  display: grid;
+  grid-template-columns: 70px 1fr 36px;
+  gap: 8px;
+  align-items: center;
+}
+.crop-adjust input {
+  accent-color: var(--green);
+}
+.plan-upload {
+  color: var(--ink);
+}
 .planner-image-actions:empty {
   display: none;
 }

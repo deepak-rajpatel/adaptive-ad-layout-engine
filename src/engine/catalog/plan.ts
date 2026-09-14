@@ -148,6 +148,7 @@ export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan
     layout: null,
     retainedArea: 0,
     crop: null,
+    minimumScale: null,
     issues,
     notes,
   };
@@ -174,6 +175,11 @@ export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan
   } else {
     const image = input.image;
     const candidates = p.accepts.map((s, i) => candidate(p, s, i, image, input));
+    // Crops scale linearly with the source, so each candidate needs a fixed growth factor.
+    const scales = candidates.flatMap((c) =>
+      c.crop ? [Math.max(c.target.width / c.crop.width, c.target.height / c.crop.height)] : [],
+    );
+    plan.minimumScale = scales.length ? Math.min(...scales) : null;
     const chosen = candidates.filter((c) => c.feasible).sort(better)[0];
     if (chosen) {
       plan.chosenSize = chosen.size;
@@ -215,6 +221,24 @@ export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan
   const order = { error: 0, warning: 1, info: 2 };
   issues.sort((a, b) => order[a.severity] - order[b.severity]);
   return plan;
+}
+
+export interface UploadRecommendation {
+  /** Smallest source size, at the current aspect ratio, meeting every crop minimum. */
+  size: Size;
+  alreadyMet: boolean;
+  /** Placements that no source resolution can fix (for example, impossible layouts). */
+  excluded: PlacementPlan[];
+}
+/** "Upload at least W×H" (B2). Returns null when there is no image. */
+export function uploadRecommendation(plans: readonly PlacementPlan[], image: Size | null): UploadRecommendation | null {
+  if (!image) return null;
+  const scale = Math.max(1, ...plans.flatMap((p) => (p.minimumScale === null ? [] : [p.minimumScale])));
+  return {
+    size: { width: Math.ceil(image.width * scale), height: Math.ceil(image.height * scale) },
+    alreadyMet: scale <= 1,
+    excluded: plans.filter((p) => p.minimumScale === null && p.fit === "Unsupported"),
+  };
 }
 
 export function planAll(input: PlanInput, placements: readonly Placement[] = catalog): PlanResult {

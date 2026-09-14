@@ -80,6 +80,23 @@ Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/
 - **Browser smoke check (headless Edge):** 27 unique cards, 18 layout thumbnails; the required-elements, campaign-type, goal-priority and "Remove image" controls render.
 - **Not checked in a browser:** clicking "Remove image" and "Undo" (the headless check cannot interact). The no-image path is covered by unit tests.
 
+**Step 7: per-placement crop focus, crop-loss preview, minimum-upload recommendation**
+- `npm run build` passed.
+- `npm test` 74/74 passed across 9 files. New: `tests/upload.test.ts`.
+- **Upload tests:**
+  - hand calculation: a 300×300 source on LinkedIn single image needs ×1.2, so 360×360 (1.91:1 would need ×2.29 and 4:5 ×2.13; the best size wins);
+  - the recommendation takes the largest need across all placements and keeps the aspect ratio;
+  - an image that already meets every minimum is reported as such;
+  - there is no recommendation without an image.
+- The per-placement focus test from step 4 still passes: an override moves only that placement's crop.
+- **Geometry harness:** 25 presets, 0 problems.
+- **Browser smoke check (headless Edge, sample 1254 × 1254):**
+  - 27 unique cards;
+  - 25 "Adjust crop" controls (every card with a crop);
+  - 12 crop-loss previews (the "Needs crop" cards that have a crop; the other 2 "Needs crop" cards are composed placements where the layout omitted the image);
+  - upload line: "Your image meets every supported crop's minimum resolution. Some placements will still need cropping."
+- **Not checked in a browser:** dragging the "Adjust crop" sliders (the headless check cannot interact).
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

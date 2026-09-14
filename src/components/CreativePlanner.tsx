@@ -9,7 +9,8 @@ import {
   Upload,
 } from "lucide-react";
 import { networks } from "../engine/catalog/data";
-import { planAll } from "../engine/catalog/plan";
+import { planAll, uploadRecommendation } from "../engine/catalog/plan";
+import type { CropRect } from "../engine/crop";
 import {
   fitStatuses,
   goals,
@@ -199,26 +200,66 @@ function PlatformThumb({
   );
 }
 
+/** The whole source image with the kept crop outlined and the cropped-away area dimmed. */
+function CropPreview({
+  src,
+  image,
+  crop,
+}: {
+  src: string;
+  image: AssetInfo;
+  crop: CropRect;
+}) {
+  const scale = Math.min(260 / image.width, 140 / image.height);
+  return (
+    <div
+      className="crop-preview"
+      style={{ width: image.width * scale, height: image.height * scale }}
+      role="img"
+      aria-label={`Kept area: ${Math.round(crop.width)} × ${Math.round(crop.height)} of ${image.width} × ${image.height}`}
+    >
+      <img src={src} alt="" />
+      <div
+        className="crop-keep"
+        style={{
+          left: crop.x * scale,
+          top: crop.y * scale,
+          width: crop.width * scale,
+          height: crop.height * scale,
+        }}
+      />
+    </div>
+  );
+}
+
 function PlanCard({
   plan,
   creative,
   hasImage,
+  image,
   guides,
   selected,
   onToggle,
   onOpenStudio,
+  onFocus,
 }: {
   plan: PlacementPlan;
   creative: Creative;
   hasImage: boolean;
+  image: AssetInfo | null;
   guides: boolean;
   selected: boolean;
   onToggle: () => void;
   onOpenStudio: () => void;
+  /** Sets this placement's crop focus; null resets it to the creative default. */
+  onFocus: (focal: { x: number; y: number } | null) => void;
 }) {
   const p = plan.placement;
   const served = [...new Set(plan.objectives.map((o) => o.goal))];
   const size = plan.chosenSize;
+  const [adjusting, setAdjusting] = useState(false);
+  const override = creative.focalOverrides[p.id];
+  const focal = override ?? { x: creative.focalX, y: creative.focalY };
   return (
     <article
       className={`plan-card${plan.recommendedForGoal ? " recommended" : ""}`}
@@ -270,6 +311,47 @@ function PlanCard({
           : `Accepts ${p.accepts.map((a) => a.label).join(", ")}`}
         {plan.crop && ` · ${Math.round(plan.retainedArea * 100)}% of image kept`}
       </p>
+      {plan.crop && hasImage && image && (
+        <div className="crop-tools">
+          {plan.fit === "Needs crop" && (
+            <CropPreview src={creative.image} image={image} crop={plan.crop} />
+          )}
+          <div className="crop-actions">
+            <button
+              className="text-button"
+              aria-expanded={adjusting}
+              onClick={() => setAdjusting((v) => !v)}
+            >
+              {adjusting ? "Done" : "Adjust crop"}
+            </button>
+            {override && <span className="plan-served">Custom focus</span>}
+          </div>
+          {adjusting && (
+            <div className="crop-adjust">
+              {(["x", "y"] as const).map((axis) => (
+                <label key={axis}>
+                  {axis === "x" ? "Horizontal" : "Vertical"}
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={focal[axis]}
+                    onChange={(e) =>
+                      onFocus({ ...focal, [axis]: Number(e.target.value) })
+                    }
+                  />
+                  <span>{focal[axis]}%</span>
+                </label>
+              ))}
+              {override && (
+                <button className="text-button" onClick={() => onFocus(null)}>
+                  Reset to default
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {plan.issues.length > 0 && (
         <ul className="plan-issues">
           {plan.issues.map((i, n) => (
@@ -364,6 +446,8 @@ export function CreativePlanner({
     [src, asset, deferred],
   );
   const hasImage = !!src && !!asset;
+  const uploadRec =
+    result && hasImage ? uploadRecommendation(result.plans, asset) : null;
   const requiredCount = Object.values(creative.required).filter(Boolean).length;
   const plans = result?.plans ?? [];
   const visible = plans.filter(
@@ -828,6 +912,16 @@ export function CreativePlanner({
                 placements.
               </p>
             )}
+            {result && hasImage && uploadRec && (
+              <p className="planner-note plan-upload">
+                {uploadRec.alreadyMet
+                  ? "Your image meets every supported crop's minimum resolution."
+                  : `Upload at least ${uploadRec.size.width} × ${uploadRec.size.height} to meet every supported crop's minimum resolution.`}{" "}
+                Some placements will still need cropping.
+                {uploadRec.excluded.length > 0 &&
+                  ` Resolution can't fix: ${uploadRec.excluded.map((p) => p.placement.name).join(", ")}.`}
+              </p>
+            )}
             {sections.map((s) => (
               <section key={s.title} className="plan-group">
                 <h4>
@@ -840,6 +934,17 @@ export function CreativePlanner({
                       plan={p}
                       creative={deferred}
                       hasImage={hasImage}
+                      image={hasImage ? asset : null}
+                      onFocus={(f) => {
+                        const { [p.placement.id]: _, ...rest } =
+                          creative.focalOverrides;
+                        onChange({
+                          ...creative,
+                          focalOverrides: f
+                            ? { ...rest, [p.placement.id]: f }
+                            : rest,
+                        });
+                      }}
                       guides={guides}
                       selected={selected.includes(p.placement.id)}
                       onToggle={() =>

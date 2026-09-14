@@ -134,6 +134,11 @@ export interface PlacementPlan {
   retainedArea: number;
   /** Source-pixel crop: the frame (platform) or the resolved image box (composed). */
   crop: CropRect | null;
+  /**
+   * Factor the source image must grow by (same aspect ratio) for at least one accepted size
+   * to meet its minimum; at most 1 when already met. Null when no crop applies.
+   */
+  minimumScale: number | null;
   issues: Issue[];
   notes: string[];
 }

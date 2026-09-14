@@ -431,6 +431,9 @@ Each placement plan carries separate fields.
   - **Departure: goal priorities are off for the sample.** The spec says goal priorities default to on for new projects. The app always starts from the brief's example creative (headline/image 1, CTA/offer 2, logo 3), so turning them on would change the graded demo layouts. The planner shows a "Goal sets element priorities" toggle instead.
   - **Departure: a removed image is stored as `""`, not `null` (E1).** Same meaning everywhere (no hero element, `planAll` receives `image: null`), without making the image field nullable across the studio, library and cloud code.
   - **CTA suggestions come from the campaign type** and are applied only when the user clicks "Use it". Checking CTAs against each network's button list is not done: no network's CTA list has been verified yet.
+- [x] Step 7: "Adjust crop" focus per placement (with reset), crop-loss preview on "Needs crop" cards, and the "Upload at least W×H" recommendation.
+  - **How the recommendation works:** each plan records how much the source must grow for at least one accepted size to meet its minimum. The recommendation is the largest of those needs, at the current aspect ratio.
+  - Placements that no resolution can fix (impossible layouts) are listed separately.
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.
