@@ -417,6 +417,11 @@ Each placement plan carries separate fields.
 - [x] Step 2: module moves + schema 3 migration. Results in `VERIFICATION.md`.
   - **Implementation note:** the offer keeps the internal element id `price`, so resolved layouts, explanations and renderer class names stay identical for old projects. Only the data field and UI label changed.
   - **Blank optional fields** are still sent to the resolver as before. Leaving them out (E2) is part of step 6, so step 2 changes no behaviour.
+- [x] Step 3: platform catalog verified. See `docs/catalog-verification.md`.
+  - Meta, Google, Taboola and LinkedIn sizes and copy limits were read on official pages.
+  - Objective names come from official search summaries.
+  - **TikTok is unverified** (the site was unreachable), so it is not buildable.
+  - Meta Stories composes at 1080×1920, because 1440×2560 exceeds the 2400 px surface limit.
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.
