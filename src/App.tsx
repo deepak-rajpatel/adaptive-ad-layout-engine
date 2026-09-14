@@ -421,7 +421,8 @@ export default function App() {
   async function exportJson() {
     try {
       let image = creative.image;
-      if (!image.startsWith("data:")) {
+      // An empty image means the creative has none; there is nothing to embed.
+      if (image && !image.startsWith("data:")) {
         const response = await fetch(image);
         if (!response.ok)
           throw new Error(
@@ -808,7 +809,11 @@ export default function App() {
                   className="image-upload"
                   onClick={() => uploadRef.current?.click()}
                 >
-                  <img src={creative.image} alt="Current product" />
+                  {creative.image ? (
+                    <img src={creative.image} alt="Current product" />
+                  ) : (
+                    <ImagePlus size={28} aria-hidden="true" />
+                  )}
                   <span>
                     <strong>Make it yours</strong>
                     <small>Upload a product image</small>

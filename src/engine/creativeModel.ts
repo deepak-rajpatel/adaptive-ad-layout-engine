@@ -1,5 +1,5 @@
 // The editor's content model (plain data) and its conversion into a declarative AdSpec.
-import { validateSpec, type AdSpec, type HexColor, type Priority } from "./spec";
+import { validateSpec, type AdSpec, type ElementSpec, type HexColor, type Priority } from "./spec";
 import type { Goal } from "./placements";
 
 export type CreativeKey = "brand" | "headline" | "image" | "offer" | "cta";
@@ -59,7 +59,40 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
   offer: false,
 };
 
-/** Priorities follow the brief's example spec: headline/image 1, CTA/offer 2, logo 3. */
+/** Goal-driven priorities (1 = most important). Used when `useGoalPriorities` is on. */
+export const goalPriorities: Record<Goal, Record<CreativeKey, Priority>> = {
+  Awareness: { image: 1, headline: 1, brand: 2, cta: 3, offer: 4 },
+  Consideration: { headline: 1, image: 2, cta: 2, offer: 3, brand: 4 },
+  Leads: { headline: 1, cta: 1, image: 2, offer: 3, brand: 4 },
+  Sales: { offer: 1, cta: 1, headline: 2, image: 2, brand: 4 },
+};
+/** Default CTA suggestion per campaign type. Suggestions never change the CTA automatically. */
+export const campaignCta: Record<CampaignType, string> = {
+  Product: "Shop now",
+  Service: "Contact us",
+  Brand: "Learn more",
+  Event: "Register",
+  Hiring: "Apply now",
+  LeadMagnet: "Download",
+};
+export const hasContent = (text: string) => text.trim().length > 0;
+
+/**
+ * The priorities toSpec applies. With goal priorities on, Sales without an offer falls back
+ * to Consideration (`fallback: true`); manual priorities are used as they are.
+ */
+export function effectivePriorities(c: CreativeData): { priorities: Record<CreativeKey, Priority>; fallback: boolean } {
+  if (!c.useGoalPriorities) return { priorities: c.priorities, fallback: false };
+  if (c.goal === "Sales" && !hasContent(c.offer))
+    return { priorities: goalPriorities.Consideration, fallback: true };
+  return { priorities: goalPriorities[c.goal], fallback: false };
+}
+
+/**
+ * Priorities follow the brief's example spec: headline/image 1, CTA/offer 2, logo 3.
+ * Goal priorities stay off for the sample so the brief's demo layouts are unchanged;
+ * the planner offers a toggle.
+ */
 export const sample: CreativeData = {
   brand: "VOXORA",
   headline: "Sound without limits.",
@@ -74,7 +107,7 @@ export const sample: CreativeData = {
   priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
   required: defaultRequired,
   goal: "Awareness",
-  useGoalPriorities: true,
+  useGoalPriorities: false,
   campaignType: "Product",
   destination: "",
   body: "",
@@ -85,16 +118,19 @@ export const sample: CreativeData = {
 
 // The offer keeps the element id "price" so resolved layouts, explanations and renderer
 // class names stay identical for projects saved before the rename.
+// Blank optional elements are left out; blank required ones stay in so validation reports them.
 export function toSpec(c: CreativeData): AdSpec {
+  const p = effectivePriorities(c).priorities;
   const req = (key: CreativeKey) => (c.required[key] ? { required: true } : {});
+  const keep = (key: CreativeKey) => c.required[key] || hasContent(c[key]);
+  const elements: ElementSpec[] = [];
+  if (keep("headline")) elements.push({ id: "headline", type: "text", role: "primary", priority: p.headline, ...req("headline"), content: c.headline });
+  if (keep("image")) elements.push({ id: "image", type: "image", role: "hero", priority: p.image, ...req("image"), content: c.image });
+  if (keep("cta")) elements.push({ id: "cta", type: "button", role: "action", priority: p.cta, ...req("cta"), content: c.cta });
+  if (keep("brand")) elements.push({ id: "brand", type: "text", role: "branding", priority: p.brand, ...req("brand"), content: c.brand });
+  if (keep("offer")) elements.push({ id: "price", type: "text", role: "secondary", priority: p.offer, ...req("offer"), truncate: true, content: c.offer });
   return {
-    elements: [
-      { id: "headline", type: "text", role: "primary", priority: c.priorities.headline, ...req("headline"), content: c.headline },
-      { id: "image", type: "image", role: "hero", priority: c.priorities.image, ...req("image"), content: c.image },
-      { id: "cta", type: "button", role: "action", priority: c.priorities.cta, ...req("cta"), content: c.cta },
-      { id: "brand", type: "text", role: "branding", priority: c.priorities.brand, ...req("brand"), content: c.brand },
-      { id: "price", type: "text", role: "secondary", priority: c.priorities.offer, ...req("offer"), truncate: true, content: c.offer },
-    ],
+    elements,
     theme: {
       background: c.background as HexColor,
       foreground: c.foreground as HexColor,

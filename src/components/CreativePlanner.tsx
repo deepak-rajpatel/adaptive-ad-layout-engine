@@ -22,7 +22,14 @@ import {
 import type { ResolvedLayout } from "../engine/layout";
 import { goalCta, type AssetInfo } from "../engine/placements";
 import { inspectAsset } from "../lib/assetInfo";
-import type { Creative } from "../lib/creative";
+import {
+  campaignCta,
+  campaignTypes,
+  offerLimit,
+  type CampaignType,
+  type Creative,
+  type CreativeKey,
+} from "../lib/creative";
 import { measure } from "../lib/measure";
 import { download } from "../lib/persistence";
 import { renderDom } from "../render/dom";
@@ -34,6 +41,14 @@ const groupLabels: Record<GroupBy, string> = {
   size: "Size",
   status: "Status",
 };
+const requiredLabels: Record<CreativeKey, string> = {
+  headline: "Headline",
+  image: "Image",
+  cta: "Call to action",
+  offer: "Offer",
+  brand: "Brand",
+};
+const typeLabel = (t: CampaignType) => (t === "LeadMagnet" ? "Lead magnet" : t);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const networkName = (id: NetworkId) =>
   networks.find((n) => n.id === id)?.name ?? id;
@@ -315,11 +330,13 @@ export function CreativePlanner({
   const [guides, setGuides] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadSequence = useRef(0);
+  const lastImage = useRef<string | null>(null);
   const src = creative.image;
   useEffect(() => {
     let cancelled = false;
     setAsset(null);
     setError("");
+    if (!src) return;
     inspectAsset(src)
       .then((info) => {
         if (!cancelled) setAsset(info);
@@ -333,13 +350,21 @@ export function CreativePlanner({
   }, [src]);
   // Typing stays responsive: plans recompute from a deferred copy of the creative.
   const deferred = useDeferredValue(creative);
+  // With no image, plans still generate (E1); while an image decodes, wait for its size.
   const result = useMemo(
     () =>
-      asset
-        ? planAll({ image: asset, creative: deferred, goal: deferred.goal, measure })
-        : null,
-    [asset, deferred],
+      src && !asset
+        ? null
+        : planAll({
+            image: src ? asset : null,
+            creative: deferred,
+            goal: deferred.goal,
+            measure,
+          }),
+    [src, asset, deferred],
   );
+  const hasImage = !!src && !!asset;
+  const requiredCount = Object.values(creative.required).filter(Boolean).length;
   const plans = result?.plans ?? [];
   const visible = plans.filter(
     (p) =>
@@ -428,7 +453,14 @@ export function CreativePlanner({
     );
   }
   const field = (
-    key: "brand" | "headline" | "longHeadline" | "description" | "body",
+    key:
+      | "brand"
+      | "headline"
+      | "longHeadline"
+      | "description"
+      | "body"
+      | "offer"
+      | "cta",
     label: string,
     rows = 1,
     maxLength = 300,
@@ -499,7 +531,7 @@ export function CreativePlanner({
             <strong>
               {busy ? "Inspecting your image…" : "Drop an image, or browse"}
             </strong>
-            <small>PNG, JPG, WebP</small>
+            <small>Optional · PNG, JPG, WebP</small>
           </button>
           <input
             ref={fileInput}
@@ -511,11 +543,43 @@ export function CreativePlanner({
               e.target.value = "";
             }}
           />
-          <div className="planner-source">
-            <img src={src} alt="Source creative" />
+          {src && (
+            <div className="planner-source">
+              <img src={src} alt="Source creative" />
+            </div>
+          )}
+          <div className="planner-image-actions">
+            {src ? (
+              <button
+                className="text-button"
+                onClick={() => {
+                  lastImage.current = src;
+                  onChange({ ...creative, image: "" });
+                }}
+              >
+                Remove image
+              </button>
+            ) : lastImage.current ? (
+              <button
+                className="text-button"
+                onClick={() =>
+                  onChange({ ...creative, image: lastImage.current! })
+                }
+              >
+                Undo remove image
+              </button>
+            ) : null}
           </div>
           <div className="planner-metadata" aria-live="polite">
-            {asset ? (
+            {!src ? (
+              <>
+                <b>No image</b>
+                <span>
+                  Optional. Placements that need one are marked; the rest
+                  resolve as text only.
+                </span>
+              </>
+            ) : asset ? (
               <>
                 <b>Static image</b>
                 <span>
@@ -539,6 +603,71 @@ export function CreativePlanner({
           {field("longHeadline", "Long headline", 2, 160)}
           {field("description", "Description", 2, 300)}
           {field("body", "Primary text", 3, 2000)}
+          {field("offer", "Offer (optional)", 1, 300)}
+          {Array.from(creative.offer).length > offerLimit && (
+            <p className="planner-error" role="alert">
+              Shorten the offer to {offerLimit} characters or fewer.
+            </p>
+          )}
+          {field("cta", "Call to action", 1, 60)}
+          <label className="field">
+            <span>Campaign type</span>
+            <select
+              value={creative.campaignType}
+              onChange={(e) =>
+                onChange({
+                  ...creative,
+                  campaignType: e.target.value as CampaignType,
+                })
+              }
+            >
+              {campaignTypes.map((t) => (
+                <option key={t} value={t}>
+                  {typeLabel(t)}
+                </option>
+              ))}
+            </select>
+          </label>
+          {creative.cta !== campaignCta[creative.campaignType] && (
+            <p className="planner-note">
+              Suggested CTA for {typeLabel(creative.campaignType).toLowerCase()}:{" "}
+              <b>{campaignCta[creative.campaignType]}</b>{" "}
+              <button
+                className="text-button"
+                onClick={() =>
+                  onChange({
+                    ...creative,
+                    cta: campaignCta[creative.campaignType],
+                  })
+                }
+              >
+                Use it
+              </button>
+            </p>
+          )}
+          <fieldset className="planner-required">
+            <legend>Required elements</legend>
+            {(Object.keys(requiredLabels) as CreativeKey[]).map((k) => (
+              <label key={k}>
+                <input
+                  type="checkbox"
+                  checked={creative.required[k]}
+                  disabled={creative.required[k] && requiredCount === 1}
+                  onChange={(e) =>
+                    onChange({
+                      ...creative,
+                      required: { ...creative.required, [k]: e.target.checked },
+                    })
+                  }
+                />{" "}
+                {requiredLabels[k]}
+              </label>
+            ))}
+            <small>
+              Required elements are never dropped. A blank required element
+              makes composed layouts invalid; at least one must stay required.
+            </small>
+          </fieldset>
           <h3>
             <span className="section-number">02</span> Destination
           </h3>
@@ -554,8 +683,8 @@ export function CreativePlanner({
             />
           </label>
           <p className="planner-note">
-            Suggested CTA for {creative.goal}: <b>{goalCta[creative.goal]}</b>.
-            Bidding and account eligibility are configured in each network.
+            Bidding, objectives and account eligibility are configured in each
+            network.
           </p>
         </aside>
         <div className="planner-content">
@@ -571,7 +700,7 @@ export function CreativePlanner({
               </div>
               <button
                 className="button small"
-                disabled={!asset || busy}
+                disabled={!result || busy}
                 onClick={exportPlan}
               >
                 <ArrowDownToLine size={15} /> Export report
@@ -635,6 +764,16 @@ export function CreativePlanner({
               <label>
                 <input
                   type="checkbox"
+                  checked={creative.useGoalPriorities}
+                  onChange={(e) =>
+                    onChange({ ...creative, useGoalPriorities: e.target.checked })
+                  }
+                />{" "}
+                Goal sets element priorities
+              </label>
+              <label>
+                <input
+                  type="checkbox"
                   checked={recommendedOnly}
                   onChange={(e) => setRecommendedOnly(e.target.checked)}
                 />{" "}
@@ -666,7 +805,7 @@ export function CreativePlanner({
               </label>
             </div>
             <p className="plan-summary" aria-live="polite">
-              {asset ? (
+              {result ? (
                 <>
                   <b>{plans.length} placements</b> ·{" "}
                   {fitStatuses
@@ -682,6 +821,13 @@ export function CreativePlanner({
                 "Planning placements…"
               )}
             </p>
+            {result && !src && (
+              <p className="planner-note">
+                Add an image to unlock{" "}
+                {plans.filter((p) => p.fit === "Needs image").length}{" "}
+                placements.
+              </p>
+            )}
             {sections.map((s) => (
               <section key={s.title} className="plan-group">
                 <h4>
@@ -693,7 +839,7 @@ export function CreativePlanner({
                       key={p.placement.id}
                       plan={p}
                       creative={deferred}
-                      hasImage={!!asset}
+                      hasImage={hasImage}
                       guides={guides}
                       selected={selected.includes(p.placement.id)}
                       onToggle={() =>
@@ -726,7 +872,7 @@ export function CreativePlanner({
                 </div>
               </section>
             ))}
-            {asset && !sections.length && (
+            {result && !sections.length && (
               <p className="planner-empty">No placements match these filters.</p>
             )}
           </section>

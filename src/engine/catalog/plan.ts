@@ -1,6 +1,6 @@
 // Generates a plan for every catalog placement from one creative. Pure: no DOM, no React.
 import { coverCrop, type CropRect } from "../crop";
-import { toSpec, type CreativeData } from "../creativeModel";
+import { effectivePriorities, hasContent, toSpec, type CreativeData } from "../creativeModel";
 import type { ResolvedImage, ResolvedLayout } from "../layout";
 import { validDestination } from "../placements";
 import { resolve } from "../resolver";
@@ -130,7 +130,9 @@ function copyIssues(fields: readonly CopyField[], creative: CreativeData): Issue
 }
 
 /** Plans one placement. Exported for tests and single-card updates. */
-export function planPlacement(p: Placement, input: PlanInput): PlacementPlan {
+export function planPlacement(p: Placement, planInput: PlanInput): PlacementPlan {
+  // Layouts follow the goal being planned for.
+  const input = { ...planInput, creative: { ...planInput.creative, goal: planInput.goal } };
   const format = formatById.get(p.formatId)!;
   const objectives = format.objectives.map((id) => objectiveById.get(id)!);
   const issues: Issue[] = [];
@@ -203,6 +205,11 @@ export function planPlacement(p: Placement, input: PlanInput): PlacementPlan {
     }
   }
   issues.push(...copyIssues(p.copyFields, input.creative));
+  const noOffer = !hasContent(input.creative.offer);
+  if (input.goal === "Sales" && noOffer && objectives.some((o) => o.goal === "Sales"))
+    issues.push({ severity: "warning", field: "offer", message: "Sales formats usually include an offer (price, discount or incentive)." });
+  if (p.surface && effectivePriorities(input.creative).fallback)
+    notes.push("No offer provided; using Consideration priorities.");
   if (p.destination && !validDestination(input.creative.destination))
     issues.push({ severity: "error", field: "destination", message: "Add a valid HTTP or HTTPS destination URL." });
   const order = { error: 0, warning: 1, info: 2 };

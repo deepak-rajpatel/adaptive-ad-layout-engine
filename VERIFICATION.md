@@ -58,6 +58,28 @@ Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/
   - 18 layout thumbnails (the composed placements);
   - summary "27 placements · 13 Ready · 14 Needs crop · 20 recommended for Awareness".
 
+**Step 6: goal priorities, optional offer and image, campaign type, required elements**
+- `npm run build` passed.
+- `npm test` 70/70 passed across 8 files. New: `tests/goals.test.ts`, plus a compile-time case in `tests/types.test.ts`.
+- **Goal-priority tests:**
+  - goal priorities apply only when switched on;
+  - on the 320×50 banner, Awareness and Sales drop different elements;
+  - Sales without an offer uses Consideration priorities, with a note on composed placements and an offer warning on Sales placements;
+  - with manual priorities there is no fallback note, but the warning remains.
+- **Element tests:**
+  - blank optional brand and offer are left out of the spec with no issue;
+  - a blank required headline makes composed layouts invalid;
+  - a creative with no required element is rejected.
+- **Campaign and non-product tests:**
+  - campaign type changes no generated plan;
+  - an Event creative with no image and no offer resolves every composed placement as `ready` or `adapted`;
+  - only image-dependent placements show "Needs image".
+- **Compile time:** a surface template with `input: "none"` and a tap target does not compile.
+- **Migration:** the identical-layout check still passes. Migrated projects keep manual priorities.
+- **Geometry harness:** 25 presets, 0 problems; assignment surfaces unchanged.
+- **Browser smoke check (headless Edge):** 27 unique cards, 18 layout thumbnails; the required-elements, campaign-type, goal-priority and "Remove image" controls render.
+- **Not checked in a browser:** clicking "Remove image" and "Undo" (the headless check cannot interact). The no-image path is covered by unit tests.
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

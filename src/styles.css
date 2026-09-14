@@ -2334,6 +2334,38 @@ dialog::backdrop {
   gap: 6px;
   align-items: center;
 }
+.planner-image-actions:empty {
+  display: none;
+}
+.planner-image-actions .text-button {
+  font-size: 11px;
+}
+.planner-required {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 11px;
+}
+.planner-required legend {
+  font-weight: 700;
+  padding: 0 4px;
+}
+.planner-required label {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.planner-required input {
+  accent-color: var(--green);
+}
+.planner-required small {
+  flex-basis: 100%;
+  color: var(--muted);
+  line-height: 1.5;
+}
 .planner-focal {
   display: flex;
   gap: 20px;

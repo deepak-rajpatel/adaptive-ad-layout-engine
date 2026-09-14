@@ -1,7 +1,11 @@
 // Compatibility re-exports: the creative model lives in the pure engine layer.
 export {
+  campaignCta,
   campaignTypes,
   defaultRequired,
+  effectivePriorities,
+  goalPriorities,
+  hasContent,
   goals,
   offerLimit,
   sample,
