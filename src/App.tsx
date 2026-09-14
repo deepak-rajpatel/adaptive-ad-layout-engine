@@ -7,13 +7,15 @@ import {
   Cloud,
   Copy,
   Folder,
-  Heart,
   ImagePlus,
   Info,
   Layers,
+  Lock,
   LogOut,
   Moon,
   MoreHorizontal,
+  Pencil,
+  Star,
   Plus,
   RotateCcw,
   Save,
@@ -49,11 +51,15 @@ import { contrast, textOn } from "./engine/contrast";
 import {
   ctaOptions,
   effectivePriorities,
-  goals,
+  goalOrder,
   intentCopy,
 } from "./engine/creativeModel";
 import { validDestination, type Goal } from "./engine/placements";
 import "./designer.css";
+import "./workflow.css";
+import { editedAgo } from "./lib/time";
+import { HomePage } from "./components/HomePage";
+import { CreatePage, type NewAd } from "./components/CreatePage";
 import { sample, surfaces } from "./lib/data";
 import { measure } from "./lib/measure";
 import { supabase } from "./lib/supabase";
@@ -80,13 +86,23 @@ import { NumberField } from "./components/NumberField";
 import { CreativePlanner } from "./components/CreativePlanner";
 
 function initialDraft() {
-  let draft: { creative: Creative; surface: Surface };
+  let draft: { creative: Creative; surface: Surface; name: string; savedAt: string };
+  const stored = readLocal<Record<string, unknown> | null>(draftKey, null);
+  // Project name and last-edit time ride along with the autosaved draft.
+  const meta = {
+    name: typeof stored?.name === "string" ? stored.name.slice(0, 120) : "",
+    savedAt:
+      typeof stored?.savedAt === "string" && Number.isFinite(Date.parse(stored.savedAt))
+        ? stored.savedAt
+        : "",
+  };
   try {
-    draft = parseProject(
-      readLocal(draftKey, { creative: sample, surface: surfaces[3] }),
-    );
+    draft = {
+      ...parseProject(stored ?? { creative: sample, surface: surfaces[3] }),
+      ...meta,
+    };
   } catch {
-    draft = { creative: sample, surface: surfaces[3] };
+    draft = { creative: sample, surface: surfaces[3], name: "", savedAt: "" };
   }
   draft = { ...draft, creative: mergeLegacyPlannerSettings(draft.creative) };
   // Shareable review links: ?surface=kiosk&height=420 opens that preset directly.
@@ -103,6 +119,17 @@ function initialDraft() {
   };
 }
 const draft = initialDraft();
+/** JSON with object keys sorted, so equal content compares equal regardless of key order. */
+const stableJson = (value: unknown) =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
+            a < b ? -1 : a > b ? 1 : 0,
+          ),
+        )
+      : v,
+  );
 const errorText = (e: unknown) =>
   e instanceof Error
     ? e.message
@@ -127,18 +154,31 @@ const requiredLabels: Record<CreativeKey, string> = {
   offer: "Offer",
 };
 // Sales (the brief's product ad) leads the menu; a saved project's goal is kept as chosen.
-const goalMenu: readonly Goal[] = ["Sales", ...goals.filter((g) => g !== "Sales")];
+const goalMenu: readonly Goal[] = goalOrder;
 
 export default function App() {
   const [creative, setCreative] = useState<Creative>(draft.creative);
   const [surface, setSurface] = useState<Surface>(draft.surface);
-  // The assignment demo (studio) is the landing page; ?view=platforms opens
-  // the ad-platform planner extension directly.
-  const [page, setPage] = useState<"planner" | "studio" | "library">(() =>
-    new URLSearchParams(window.location.search).get("view") === "platforms"
-      ? "planner"
-      : "studio",
-  );
+  // Home is the normal entry point. Direct links keep working: ?surface=… and
+  // ?view=designer open the Ad Designer, ?view=platforms and ?view=library their pages.
+  const [page, setPage] = useState<
+    "home" | "create" | "studio" | "planner" | "library"
+  >(() => {
+    const params = new URLSearchParams(window.location.search);
+    const view = params.get("view");
+    if (view === "platforms") return "planner";
+    if (view === "library") return "library";
+    if (view === "designer" || params.has("surface")) return "studio";
+    return "home";
+  });
+  const [projectName, setProjectName] = useState(draft.name);
+  const [draftSavedAt, setDraftSavedAt] = useState(draft.savedAt);
+  const draftWritten = useRef(false);
+  // Block body on purpose: some browsers return a Promise from scrollTo, which React
+  // would otherwise treat as a cleanup function and crash on the next page change.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page]);
   const [mobileTab, setMobileTab] = useState("preview");
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
@@ -173,8 +213,9 @@ export default function App() {
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [name, setName] = useState("Voxora · Sound without limits");
-  const [collection, setCollection] = useState("Summer campaign");
+  const [name, setName] = useState("");
+  const [collection, setCollection] = useState("");
+  const [sortBy, setSortBy] = useState<"recent" | "name">("recent");
   const [saveCloud, setSaveCloud] = useState(false);
   const [query, setQuery] = useState("");
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -234,16 +275,27 @@ export default function App() {
   }, [dark]);
   useEffect(() => {
     const timer = setTimeout(() => {
+      // The first write after load keeps the stored edit time; later writes are real edits.
+      const savedAt =
+        draftWritten.current || !draftSavedAt ? new Date().toISOString() : draftSavedAt;
       try {
-        writeLocal(draftKey, { version: schemaVersion, creative, surface });
+        writeLocal(draftKey, {
+          version: schemaVersion,
+          creative,
+          surface,
+          name: projectName,
+          savedAt,
+        });
+        draftWritten.current = true;
+        setDraftSavedAt(savedAt);
         retireLegacyPlannerSettings();
-        setDraftStatus("Draft saved locally");
+        setDraftStatus("Draft saved on this device");
       } catch {
-        setDraftStatus("Storage full — export JSON to keep your work");
+        setDraftStatus("Draft not saved: storage is full. Export JSON to keep your work.");
       }
     }, 400);
     return () => clearTimeout(timer);
-  }, [creative, surface]);
+  }, [creative, surface, projectName]);
   useEffect(() => {
     if (!message) return;
     const timer = setTimeout(() => setMessage(""), 6500);
@@ -368,6 +420,7 @@ export default function App() {
         setCloudItems((items) => [item, ...items]);
       } else persist([item, ...library]);
       setSaveOpen(false);
+      setProjectName(item.name);
       setMessage(
         saveCloud
           ? "Version saved to your cloud library."
@@ -512,19 +565,141 @@ export default function App() {
     }
     setBusy(false);
   }
-  async function importProject(file?: File) {
-    if (!file) return;
+  async function importProject(file?: File): Promise<boolean> {
+    if (!file) return false;
     try {
       if (file.size > 4 * 1024 * 1024)
         throw new Error("Project file must be under 4 MB.");
       const parsed = parseProject(JSON.parse(await file.text()));
       setCreative(parsed.creative);
       setSurface(parsed.surface);
+      setProjectName(file.name.replace(/\.json$/i, "").slice(0, 120));
       setMessage("Project imported.");
+      return true;
     } catch (e) {
-      setMessage(errorText(e));
+      setMessage(`Import failed: ${errorText(e)}`);
+      return false;
     }
   }
+  const displayName =
+    projectName.trim() || creative.brand.trim() || "Untitled creative";
+  // Compares content, not key order: loading and upgrading rebuild objects in a different order.
+  const sameWork = (
+    a: { creative: Creative; surface: Surface },
+    b: { creative: Creative; surface: Surface },
+  ) =>
+    stableJson(a.creative) === stableJson(b.creative) &&
+    stableJson(a.surface) === stableJson(b.surface);
+  // The built-in example is not user work; anything else (or a named project) is.
+  const isUserWork =
+    !!projectName.trim() ||
+    !sameWork({ creative, surface }, { creative: sample, surface: surfaces[3] });
+  /**
+   * Keeps the current draft recoverable before it is replaced: stored in My creatives
+   * (the existing local library) unless an identical version is already there.
+   */
+  function preserveDraft(): "kept" | "unchanged" | "failed" {
+    if (!isUserWork || library.some((item) => sameWork(item, { creative, surface })))
+      return "unchanged";
+    try {
+      parseProject({ version: schemaVersion, creative, surface });
+      persist([
+        {
+          id: crypto.randomUUID(),
+          name: `${displayName} (draft)`.slice(0, 120),
+          collection: "Drafts",
+          favorite: false,
+          creative,
+          surface,
+          updated_at: new Date().toISOString(),
+        },
+        ...library,
+      ]);
+      return "kept";
+    } catch (e) {
+      setMessage(
+        `Your current draft could not be kept, so nothing was replaced: ${errorText(e)} Fix it or export JSON first.`,
+      );
+      return "failed";
+    }
+  }
+  /** Replaces the current work (after preserving it) and opens the Ad Designer. */
+  function loadWork(next: { creative: Creative; surface: Surface }, nextName: string) {
+    const kept = sameWork(next, { creative, surface }) ? "unchanged" : preserveDraft();
+    if (kept === "failed") return false;
+    setCreative(next.creative);
+    setSurface(next.surface);
+    setProjectName(nextName);
+    setCtaCustom(false);
+    lastImage.current = null;
+    setPage("studio");
+    if (kept === "kept") setMessage("Your previous draft was kept in My creatives.");
+    return true;
+  }
+  function openSaved(item: SavedCreative) {
+    try {
+      const parsed = parseProject(item);
+      if (!loadWork(parsed, item.name)) return;
+      setName(item.name);
+      setCollection(item.collection);
+    } catch (e) {
+      setMessage(`Could not open ${item.name}: ${errorText(e)}`);
+    }
+  }
+  function createAd(ad: NewAd) {
+    loadWork(
+      {
+        creative: {
+          ...sample,
+          brand: ad.brand,
+          headline: ad.headline,
+          offer: ad.offer,
+          cta: ad.cta,
+          image: ad.image,
+          goal: ad.goal,
+          useGoalPriorities: true,
+          destination: "",
+          body: "",
+          longHeadline: "",
+          description: "",
+          focalX: 50,
+          focalY: 50,
+          focalOverrides: {},
+        },
+        surface: surfaces[3],
+      },
+      ad.name || "Untitled creative",
+    );
+  }
+  async function importFromHome(file: File) {
+    const kept = preserveDraft();
+    if (kept === "failed") return;
+    if (await importProject(file)) {
+      setPage("studio");
+      if (kept === "kept")
+        setMessage("Project imported. Your previous draft was kept in My creatives.");
+    }
+  }
+  function exportSaved(item: SavedCreative) {
+    download(
+      new Blob(
+        [JSON.stringify({ version: schemaVersion, creative: item.creative, surface: item.surface }, null, 2)],
+        { type: "application/json" },
+      ),
+      `${item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "creative"}.json`,
+    );
+  }
+  const recentCards = useMemo(
+    () =>
+      [...library, ...cloudItems]
+        .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+        .slice(0, 3)
+        .map((item) => ({
+          item,
+          result: resolve(toSpec(item.creative), item.surface, measure),
+        })),
+    [library, cloudItems],
+  );
   const selectedLibrary = libraryMode === "cloud" ? cloudItems : library;
   const savedResults = useMemo(
     () =>
@@ -536,49 +711,56 @@ export default function App() {
       ),
     [selectedLibrary],
   );
-  const filtered = selectedLibrary.filter(
-    (item) =>
-      (!favoritesOnly || item.favorite) &&
-      (collectionFilter === "All collections" ||
-        item.collection === collectionFilter) &&
-      `${item.name} ${item.collection}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-  );
+  const filtered = selectedLibrary
+    .filter(
+      (item) =>
+        (!favoritesOnly || item.favorite) &&
+        (collectionFilter === "All collections" ||
+          item.collection === collectionFilter) &&
+        `${item.name} ${item.collection} ${item.creative.headline} ${item.creative.brand}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
+    )
+    .sort((a, b) =>
+      sortBy === "name"
+        ? a.name.localeCompare(b.name)
+        : Date.parse(b.updated_at) - Date.parse(a.updated_at),
+    );
   return (
     <>
       <header className="topbar">
         <button
           className="wordmark"
-          onClick={() => setPage("studio")}
-          aria-label="Omniframe studio"
+          onClick={() => setPage("home")}
+          aria-label="Omniframe home"
         >
           <span className="brand-mark">o</span>omniframe
           <span className="wordmark-dot">.</span>
         </button>
         <nav aria-label="Main navigation">
-          <button
-            className={page === "studio" ? "nav-active" : ""}
-            onClick={() => setPage("studio")}
-          >
-            Ad Designer
-          </button>
-          <button
-            className={page === "planner" ? "nav-active" : ""}
-            onClick={() => setPage("planner")}
-          >
-            Ad platforms <span className="count">Extension</span>
-          </button>
-          <button
-            className={page === "library" ? "nav-active" : ""}
-            onClick={() => setPage("library")}
-          >
-            My creatives{" "}
-            <span className="count">{library.length + cloudItems.length}</span>
-          </button>
+          {(
+            [
+              ["home", "Home"],
+              ["studio", "Ad Designer"],
+              ["planner", "Ad platforms"],
+              ["library", "My creatives"],
+            ] as const
+          ).map(([id, label]) => {
+            // Create an ad is part of the Home journey.
+            const active = page === id || (id === "home" && page === "create");
+            return (
+              <button
+                key={id}
+                className={active ? "nav-active" : ""}
+                aria-current={active ? "page" : undefined}
+                onClick={() => setPage(id)}
+              >
+                {label}
+              </button>
+            );
+          })}
         </nav>
         <div className="top-actions">
-          <span className="workspace-label">Your creative workspace</span>
           <button
             className="icon-button"
             onClick={() => setDark(!dark)}
@@ -618,46 +800,11 @@ export default function App() {
         </div>
       </header>
       <main>
-        {/* The Ad Designer uses its own compact toolbar; other pages keep this heading. */}
-        {page !== "studio" && (
-        <section className="page-heading">
-          <div>
-            <div className="eyebrow">
-              <span className="status-dot" />{" "}
-              {page === "planner"
-                ? "EXTENSION · AD PLATFORM PLANNER"
-                : "YOUR CREATIVE LIBRARY"}
-            </div>
-            <h1>
-              {page === "planner" ? (
-                <>
-                  One asset. <span>More possibilities.</span>
-                </>
-              ) : (
-                <>
-                  Good ideas, <span>saved.</span>
-                </>
-              )}
-            </h1>
-            <p>
-              {page === "planner"
-                ? "The same engine applied to real Meta, Google, Taboola and LinkedIn placements."
-                : "Your campaigns, favorites, and saved versions. Ready for the next idea."}
-            </p>
-          </div>
-          <div className="heading-actions">
-            <button
-              className="button primary"
-              onClick={() => setPage("studio")}
-            >
-              <Plus size={16} /> Open Ad Designer
-            </button>
-          </div>
-        </section>
-        )}
         <div hidden={page !== "planner"}>
           <CreativePlanner
             creative={creative}
+            projectName={displayName}
+            onEditCreative={() => setPage("studio")}
             onChange={setCreative}
             onOpenStudio={(plan) => {
               const p = plan.placement;
@@ -698,7 +845,7 @@ export default function App() {
               <div>
                 <h1>Ad Designer</h1>
                 <p>
-                  {creative.brand.trim() || "Untitled creative"} · {surface.name}{" "}
+                  {displayName} · {surface.name}{" "}
                   · <span role="status">{draftStatus}</span>
                 </p>
               </div>
@@ -708,6 +855,7 @@ export default function App() {
                   onClick={() => {
                     setSaveCloud(false);
                     setSaveError("");
+                    setName(displayName);
                     setSaveOpen(true);
                   }}
                 >
@@ -1764,182 +1912,270 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <section className="library">
-            <div className="library-toolbar">
-              <div className="segmented">
-                <button
-                  className={libraryMode === "local" ? "selected" : ""}
-                  onClick={() => setLibraryMode("local")}
-                >
-                  This browser
-                </button>
-                <button
-                  className={libraryMode === "cloud" ? "selected" : ""}
-                  onClick={() =>
-                    user ? setLibraryMode("cloud") : setAuthOpen(true)
-                  }
-                >
-                  <Cloud size={14} /> Cloud library
-                </button>
-              </div>
-              <label className="search-field">
-                <Search size={16} />
-                <input
-                  placeholder="Find a creative…"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </label>
-              <select
-                aria-label="Filter collection"
-                value={collectionFilter}
-                onChange={(e) => setCollectionFilter(e.target.value)}
-              >
-                <option>All collections</option>
-                {Array.from(
-                  new Set(selectedLibrary.map((v) => v.collection)),
-                ).map((v) => (
-                  <option key={v}>{v}</option>
-                ))}
-              </select>
-              <button
-                className={`button ${favoritesOnly ? "active" : ""}`}
-                aria-pressed={favoritesOnly}
-                onClick={() => setFavoritesOnly(!favoritesOnly)}
-              >
-                <Heart
-                  size={16}
-                  fill={favoritesOnly ? "currentColor" : "none"}
-                />{" "}
-                Favorites
-              </button>
-            </div>
-            <p className="library-note">
-              {libraryMode === "local"
-                ? "Saved on this device. Clearing browser data removes local versions. Export JSON to keep a backup."
-                : `Signed in as ${user?.email}. Your saved versions are private to your account.`}
-            </p>
-            {libraryMode === "cloud" && cloudError && (
-              <div className="notice error">
-                {cloudError}
-                <button
-                  className="text-button"
-                  onClick={() => void loadCloud()}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-            {cloudLoading && libraryMode === "cloud" ? (
-              <p>Loading your creatives…</p>
-            ) : filtered.length ? (
-              <div className="library-grid">
-                {filtered.map((item) => (
-                  <article className="saved-card" key={item.id}>
+          <>
+            {page === "library" && (
+              <section className="creatives" aria-labelledby="creatives-title">
+                <div className="page-head">
+                  <h1 id="creatives-title">My creatives</h1>
+                  <button
+                    className="button primary"
+                    onClick={() => setPage("create")}
+                  >
+                    <Plus size={16} /> Create an ad
+                  </button>
+                </div>
+                <div className="scope-row">
+                  <div className="segmented" role="group" aria-label="Where to look">
                     <button
-                      className="saved-preview"
-                      onClick={() => {
-                        try {
-                          const parsed = parseProject(item);
-                          setCreative(parsed.creative);
-                          setSurface(parsed.surface);
-                          setName(item.name);
-                          setCollection(item.collection);
-                          setPage("studio");
-                        } catch (e) {
-                          setMessage(errorText(e));
-                        }
-                      }}
+                      className={libraryMode === "local" ? "selected" : ""}
+                      aria-pressed={libraryMode === "local"}
+                      onClick={() => setLibraryMode("local")}
                     >
-                      <Preview
-                        surface={item.surface}
-                        result={savedResults.get(item.id)!}
-                        maxHeight={210}
-                      />
+                      This device
                     </button>
-                    <div className="saved-card-body">
-                      <span className="collection-tag">
-                        <Folder size={12} />
-                        {item.collection}
-                      </span>
-                      <h3>{item.name}</h3>
+                    <button
+                      className={libraryMode === "cloud" ? "selected" : ""}
+                      aria-pressed={libraryMode === "cloud"}
+                      onClick={() =>
+                        user ? setLibraryMode("cloud") : setAuthOpen(true)
+                      }
+                    >
+                      <Cloud size={14} /> Cloud
+                      {!user && <Lock size={12} aria-label="sign in required" />}
+                    </button>
+                  </div>
+                  {libraryMode === "local" ? (
+                    <details className="storage-info">
+                      <summary>
+                        <Info size={14} /> Saved on this device
+                      </summary>
                       <p>
-                        {new Date(item.updated_at).toLocaleDateString()} ·{" "}
-                        {item.surface.name}
+                        Versions are stored in this browser only. Clearing
+                        browser data removes them; use Export project from a
+                        card's menu to keep a backup.
                       </p>
-                      <div className="saved-actions">
+                    </details>
+                  ) : (
+                    <span className="storage-info">
+                      Signed in as {user?.email}. Cloud versions are private to
+                      your account.
+                    </span>
+                  )}
+                </div>
+                {libraryMode === "cloud" && cloudError && (
+                  <div className="notice error" role="alert">
+                    {cloudError}
+                    <button
+                      className="text-button"
+                      onClick={() => void loadCloud()}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+                {selectedLibrary.length > 0 && (
+                  <div className="creatives-toolbar">
+                    <label className="search-field">
+                      <Search size={16} />
+                      <input
+                        aria-label="Search creatives"
+                        placeholder="Search creatives"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </label>
+                    <select
+                      aria-label="Filter collection"
+                      value={collectionFilter}
+                      onChange={(e) => setCollectionFilter(e.target.value)}
+                    >
+                      <option>All collections</option>
+                      {Array.from(
+                        new Set(selectedLibrary.map((v) => v.collection)),
+                      ).map((v) => (
+                        <option key={v}>{v}</option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label="Sort"
+                      value={sortBy}
+                      onChange={(e) =>
+                        setSortBy(e.target.value as "recent" | "name")
+                      }
+                    >
+                      <option value="recent">Recently edited</option>
+                      <option value="name">Name A–Z</option>
+                    </select>
+                    <button
+                      className={`button ${favoritesOnly ? "active" : ""}`}
+                      aria-pressed={favoritesOnly}
+                      onClick={() => setFavoritesOnly(!favoritesOnly)}
+                    >
+                      <Star
+                        size={16}
+                        fill={favoritesOnly ? "currentColor" : "none"}
+                      />{" "}
+                      Favorites
+                    </button>
+                  </div>
+                )}
+                {cloudLoading && libraryMode === "cloud" ? (
+                  <p className="library-note" role="status">
+                    Loading your creatives…
+                  </p>
+                ) : filtered.length ? (
+                  <div className="creatives-grid">
+                    {filtered.map((item) => (
+                      <article className="creative-card" key={item.id}>
                         <button
-                          className="text-button"
-                          onClick={() => void changeSaved(item, "rename")}
+                          className="creative-thumb"
+                          aria-label={`Open ${item.name}`}
+                          onClick={() => openSaved(item)}
                         >
-                          Rename
+                          <Preview
+                            surface={item.surface}
+                            result={savedResults.get(item.id)!}
+                            maxHeight={196}
+                          />
                         </button>
-                        <div>
+                        <div className="creative-meta">
+                          <div>
+                            <h3>{item.name}</h3>
+                            <p>
+                              {editedAgo(item.updated_at)} · {item.collection} ·{" "}
+                              {item.surface.name}
+                            </p>
+                          </div>
                           <button
                             className="icon-button"
                             aria-label={`Favorite ${item.name}`}
+                            aria-pressed={item.favorite}
                             onClick={() => void changeSaved(item, "favorite")}
                           >
-                            <Heart
-                              size={16}
+                            <Star
+                              size={17}
                               fill={item.favorite ? "currentColor" : "none"}
                             />
                           </button>
-                          <button
-                            className="icon-button"
-                            aria-label={`Duplicate ${item.name}`}
-                            onClick={() => void changeSaved(item, "duplicate")}
-                          >
-                            <Copy size={16} />
-                          </button>
-                          <button
-                            className="icon-button"
-                            aria-label={`Delete ${item.name}`}
-                            onClick={() => setDeleteId(item.id)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          <details className="card-menu">
+                            <summary
+                              className="icon-button"
+                              aria-label={`More actions for ${item.name}`}
+                            >
+                              <MoreHorizontal size={17} />
+                            </summary>
+                            <div className="menu-body">
+                              {(
+                                [
+                                  ["Open", ArrowRight, () => openSaved(item)],
+                                  ["Rename", Pencil, () => void changeSaved(item, "rename")],
+                                  ["Duplicate", Copy, () => void changeSaved(item, "duplicate")],
+                                  ["Export project", ArrowDownToLine, () => exportSaved(item)],
+                                  ["Delete", Trash2, () => setDeleteId(item.id)],
+                                ] as const
+                              ).map(([label, Icon, action]) => (
+                                <button
+                                  key={label}
+                                  onClick={(e) => {
+                                    e.currentTarget
+                                      .closest("details")
+                                      ?.removeAttribute("open");
+                                    action();
+                                  }}
+                                >
+                                  <Icon size={14} /> {label}
+                                </button>
+                              ))}
+                            </div>
+                          </details>
                         </div>
-                      </div>
-                      {deleteId === item.id && (
-                        <div className="delete-confirm">
-                          Delete this saved version?
-                          <button
-                            onClick={() => void changeSaved(item, "delete")}
-                          >
-                            Delete
-                          </button>
-                          <button onClick={() => setDeleteId(null)}>
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <div className="empty-state">
-                <Folder size={36} />
-                <h2>
-                  {favoritesOnly || query
-                    ? "No matching creatives"
-                    : "A home for your next great idea."}
-                </h2>
-                <p>
-                  {favoritesOnly || query
-                    ? "Try another search or clear your filters."
-                    : "Save a version from the studio to start your collection."}
-                </p>
-                <button
-                  className="button primary"
-                  onClick={() => setPage("studio")}
-                >
-                  Back to the studio <ArrowRight size={16} />
-                </button>
-              </div>
+                        {deleteId === item.id && (
+                          <div className="delete-confirm" role="alert">
+                            Delete this saved version?
+                            <button
+                              onClick={() => void changeSaved(item, "delete")}
+                            >
+                              Delete
+                            </button>
+                            <button onClick={() => setDeleteId(null)}>
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                ) : selectedLibrary.length ? (
+                  <div className="empty-state">
+                    <h2>No matching creatives</h2>
+                    <p>Try another search or clear your filters.</p>
+                    <button
+                      className="button"
+                      onClick={() => {
+                        setQuery("");
+                        setFavoritesOnly(false);
+                        setCollectionFilter("All collections");
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <Folder size={36} />
+                    <h2>No saved creatives yet</h2>
+                    <p>Save a version from the Ad Designer and it will appear here.</p>
+                    <button
+                      className="button primary"
+                      onClick={() => setPage("create")}
+                    >
+                      <Plus size={16} /> Create an ad
+                    </button>
+                  </div>
+                )}
+              </section>
             )}
-          </section>
+            {page === "home" && (
+              <HomePage
+                draft={
+                  isUserWork
+                    ? {
+                        name: displayName,
+                        editedAt: draftSavedAt
+                          ? editedAgo(draftSavedAt)
+                          : "Edited just now",
+                        surface,
+                        result,
+                      }
+                    : null
+                }
+                recent={recentCards}
+                storageLabel={
+                  user
+                    ? `Signed in as ${user.email}. Drafts save on this device; Save version can also save to the cloud.`
+                    : "Your work saves on this device."
+                }
+                onContinue={() => setPage("studio")}
+                onCreate={() => setPage("create")}
+                onExample={() =>
+                  loadWork({ creative: sample, surface: surfaces[3] }, "")
+                }
+                onImport={(file) => void importFromHome(file)}
+                onOpen={openSaved}
+                onViewAll={() => setPage("library")}
+              />
+            )}
+            {page === "create" && (
+              <CreatePage
+                returning={isUserWork || recentCards.length > 0}
+                onBack={() => setPage("home")}
+                onExample={() =>
+                  loadWork({ creative: sample, surface: surfaces[3] }, "")
+                }
+                onCreate={createAd}
+              />
+            )}
+          </>
         )}
         <footer className="site-footer">
           <span>

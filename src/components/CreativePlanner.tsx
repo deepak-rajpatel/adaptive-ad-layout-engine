@@ -3,10 +3,10 @@ import {
   ArrowDownToLine,
   ArrowRight,
   Check,
+  ChevronDown,
+  FileText,
   ImagePlus,
-  Layers,
   Star,
-  Upload,
 } from "lucide-react";
 import { networks } from "../engine/catalog/data";
 import {
@@ -29,15 +29,9 @@ import {
 } from "../engine/catalog/types";
 import type { ResolvedLayout } from "../engine/layout";
 import { goalCta, type AssetInfo } from "../engine/placements";
+import { goalOrder, intentCopy } from "../engine/creativeModel";
 import { inspectAsset } from "../lib/assetInfo";
-import {
-  campaignCta,
-  campaignTypes,
-  offerLimit,
-  type CampaignType,
-  type Creative,
-  type CreativeKey,
-} from "../lib/creative";
+import type { Creative } from "../lib/creative";
 import { measure } from "../lib/measure";
 import { renderExport } from "../lib/exporter";
 import { download } from "../lib/persistence";
@@ -50,17 +44,11 @@ const groupLabels: Record<GroupBy, string> = {
   size: "Size",
   status: "Status",
 };
-const requiredLabels: Record<CreativeKey, string> = {
-  headline: "Headline",
-  image: "Image",
-  cta: "Call to action",
-  offer: "Offer",
-  brand: "Brand",
-};
-const typeLabel = (t: CampaignType) => (t === "LeadMagnet" ? "Lead magnet" : t);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 const networkName = (id: NetworkId) =>
   networks.find((n) => n.id === id)?.name ?? id;
+const assignmentNote =
+  "The assignment's four surfaces, composed by the layout engine from your creative.";
 
 const sizeOrder = [
   "9:16 vertical",
@@ -87,6 +75,7 @@ function sizeBucket(p: PlacementPlan) {
 
 interface Section {
   title: string;
+  note?: string;
   plans: PlacementPlan[];
   setup: Format[];
 }
@@ -102,13 +91,14 @@ function group(
     by === "network"
       ? networks.map((n) => ({
           title: n.name,
+          note: n.id === "assignment" ? assignmentNote : undefined,
           plans: plans.filter((p) => p.placement.network === n.id),
           setup: setup.filter((f) => f.network === n.id),
         }))
       : by === "goal"
         ? [
             ...goals.map((g) => ({
-              title: g,
+              title: intentCopy[g].label,
               plans: plans.filter(
                 (p) =>
                   p.placement.network !== "assignment" &&
@@ -116,7 +106,12 @@ function group(
               ),
               setup: [],
             })),
-            { title: "Assignment surfaces", plans: assignment, setup: [] },
+            {
+              title: "Assignment surfaces",
+              note: assignmentNote,
+              plans: assignment,
+              setup: [],
+            },
           ]
         : by === "size"
           ? sizeOrder.map((t) => ({
@@ -270,16 +265,29 @@ function PlanCard({
   const [adjusting, setAdjusting] = useState(false);
   const override = creative.focalOverrides[p.id];
   const focal = override ?? { x: creative.focalX, y: creative.focalY };
+  const issues = plan.issues.length;
+  const dims = size
+    ? `${size.recommended.width} × ${size.recommended.height}`
+    : p.accepts.map((a) => a.label).join(", ");
   return (
     <article
-      className={`plan-card${plan.recommendedForGoal ? " recommended" : ""}`}
+      className={`plan-card${selected ? " selected" : ""}${plan.recommendedForGoal ? " recommended" : ""}`}
       data-placement-id={p.id}
     >
-      <header>
-        <span className="planner-network">
-          {networkName(p.network)} · {plan.format.name}
-        </span>
-        <h4>{p.name}</h4>
+      <header className="plan-card-head">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          aria-label={`Select ${p.name}`}
+        />
+        <div className="plan-card-title">
+          <h3>{p.name}</h3>
+          <span>
+            {networkName(p.network)} · {plan.format.name}
+          </span>
+          <span className="plan-dims">{dims}</span>
+        </div>
         <div className="plan-badges">
           <span className={`planner-fit fit-${slug(plan.fit)}`}>
             {plan.fit === "Ready" && <Check size={12} />}
@@ -290,15 +298,12 @@ function PlanCard({
               Layout {plan.layoutStatus}
             </span>
           )}
-          {plan.recommendedForGoal && (
-            <span className="plan-recommended">
-              <Star size={11} /> Recommended
+          {issues > 0 && (
+            <span className="plan-issue-count">
+              {issues} {issues === 1 ? "issue" : "issues"}
             </span>
           )}
         </div>
-        {!plan.recommendedForGoal && served.length > 0 && (
-          <small className="plan-served">Better for {served.join(", ")}</small>
-        )}
       </header>
       <div className="plan-preview">
         {plan.layout &&
@@ -315,110 +320,128 @@ function PlanCard({
           <PlatformThumb plan={plan} creative={creative} hasImage={hasImage} />
         )}
       </div>
-      <p className="plan-size">
-        {size
-          ? `${size.label} · ${size.recommended.width} × ${size.recommended.height}`
-          : `Accepts ${p.accepts.map((a) => a.label).join(", ")}`}
-        {plan.crop && ` · ${Math.round(plan.retainedArea * 100)}% of image kept`}
-      </p>
-      {plan.crop && hasImage && image && (
-        <div className="crop-tools">
-          {plan.fit === "Needs crop" && (
-            <CropPreview src={creative.image} image={image} crop={plan.crop} />
+      <footer className="plan-card-foot">
+        <button className="text-link" disabled={!size} onClick={onOpenStudio}>
+          Open in Ad Designer <ArrowRight size={13} />
+        </button>
+        {plan.pngExport.available && (
+          <button className="text-button" onClick={onDownload}>
+            <ArrowDownToLine size={13} />{" "}
+            {plan.pngExport.kind === "image-asset" ? "Image asset" : "PNG"}
+          </button>
+        )}
+      </footer>
+      <details className="plan-details">
+        <summary>
+          <span>View details</span>
+          <ChevronDown size={14} className="chev" />
+        </summary>
+        <div className="plan-details-body">
+          {plan.recommendedForGoal ? (
+            <p className="plan-recommended">
+              <Star size={11} /> Recommended for your goal
+            </p>
+          ) : (
+            served.length > 0 && (
+              <p className="plan-served">
+                Better for {served.map((g) => intentCopy[g].label).join(", ")}
+              </p>
+            )
           )}
-          <div className="crop-actions">
-            <button
-              className="text-button"
-              aria-expanded={adjusting}
-              onClick={() => setAdjusting((v) => !v)}
-            >
-              {adjusting ? "Done" : "Adjust crop"}
-            </button>
-            {override && <span className="plan-served">Custom focus</span>}
-          </div>
-          {adjusting && (
-            <div className="crop-adjust">
-              {(["x", "y"] as const).map((axis) => (
-                <label key={axis}>
-                  {axis === "x" ? "Horizontal" : "Vertical"}
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={focal[axis]}
-                    onChange={(e) =>
-                      onFocus({ ...focal, [axis]: Number(e.target.value) })
-                    }
-                  />
-                  <span>{focal[axis]}%</span>
-                </label>
-              ))}
-              {override && (
-                <button className="text-button" onClick={() => onFocus(null)}>
-                  Reset to default
+          <p className="plan-size">
+            {size
+              ? `${size.label} · ${size.recommended.width} × ${size.recommended.height}`
+              : `Accepts ${p.accepts.map((a) => a.label).join(", ")}`}
+            {plan.crop && ` · ${Math.round(plan.retainedArea * 100)}% of image kept`}
+          </p>
+          <p className="plan-kind">
+            {p.surface
+              ? "Composed creative: the layout engine arranges your ad at this size."
+              : "Platform-assembled: the network combines your image and copy. This preview is illustrative."}
+          </p>
+          {plan.crop && hasImage && image && (
+            <div className="crop-tools">
+              {plan.fit === "Needs crop" && (
+                <CropPreview src={creative.image} image={image} crop={plan.crop} />
+              )}
+              <div className="crop-actions">
+                <button
+                  className="text-button"
+                  aria-expanded={adjusting}
+                  onClick={() => setAdjusting((v) => !v)}
+                >
+                  {adjusting ? "Done" : "Adjust crop"}
                 </button>
+                {override && <span className="plan-served">Custom focus</span>}
+              </div>
+              {adjusting && (
+                <div className="crop-adjust">
+                  {(["x", "y"] as const).map((axis) => (
+                    <label key={axis}>
+                      {axis === "x" ? "Horizontal" : "Vertical"}
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={focal[axis]}
+                        onChange={(e) =>
+                          onFocus({ ...focal, [axis]: Number(e.target.value) })
+                        }
+                      />
+                      <span>{focal[axis]}%</span>
+                    </label>
+                  ))}
+                  {override && (
+                    <button className="text-button" onClick={() => onFocus(null)}>
+                      Reset to default
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
-        </div>
-      )}
-      {plan.issues.length > 0 && (
-        <ul className="plan-issues">
-          {plan.issues.map((i, n) => (
-            <li key={n} className={`issue-${i.severity}`}>
-              {i.message}
-            </li>
-          ))}
-        </ul>
-      )}
-      {plan.notes.length > 0 && (
-        <details className="plan-notes">
-          <summary>Notes</summary>
-          <ul>
-            {plan.notes.map((n) => (
-              <li key={n}>{n}</li>
-            ))}
-          </ul>
-          <a href={p.source || plan.format.source} target="_blank" rel="noreferrer">
-            Official guidance ↗
-          </a>
-        </details>
-      )}
-      {!plan.pngExport.available && (
-        <p className="plan-size">No PNG: {plan.pngExport.reason}</p>
-      )}
-      <footer>
-        <label>
-          <input type="checkbox" checked={selected} onChange={onToggle} /> Select
-        </label>
-        <div className="plan-card-actions">
-          {plan.pngExport.available && (
-            <button className="text-button" onClick={onDownload}>
-              <ArrowDownToLine size={13} />{" "}
-              {plan.pngExport.kind === "image-asset" ? "Image asset" : "PNG"}
-            </button>
+          {plan.issues.length > 0 && (
+            <ul className="plan-issues">
+              {plan.issues.map((i, n) => (
+                <li key={n} className={`issue-${i.severity}`}>
+                  {i.message}
+                </li>
+              ))}
+            </ul>
           )}
-          <button
-            className="text-button"
-            disabled={!size}
-            onClick={onOpenStudio}
-          >
-            Open in Ad Designer <ArrowRight size={13} />
-          </button>
+          {plan.notes.length > 0 && (
+            <ul className="plan-note-list">
+              {plan.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          )}
+          {!plan.pngExport.available && (
+            <p className="plan-size">No PNG: {plan.pngExport.reason}</p>
+          )}
+          {(p.source || plan.format.source) && (
+            <a href={p.source || plan.format.source} target="_blank" rel="noreferrer">
+              Official guidance ↗
+            </a>
+          )}
         </div>
-      </footer>
+      </details>
     </article>
   );
 }
 
 export function CreativePlanner({
   creative,
+  projectName,
   onChange,
   onOpenStudio,
+  onEditCreative,
 }: {
   creative: Creative;
+  projectName: string;
   onChange: (c: Creative) => void;
   onOpenStudio: (plan: PlacementPlan) => void;
+  onEditCreative: () => void;
 }) {
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [error, setError] = useState("");
@@ -432,9 +455,6 @@ export function CreativePlanner({
   const [selected, setSelected] = useState<string[]>([]);
   const [guides, setGuides] = useState(false);
   const [exportStatus, setExportStatus] = useState("");
-  const fileInput = useRef<HTMLInputElement>(null);
-  const uploadSequence = useRef(0);
-  const lastImage = useRef<string | null>(null);
   const src = creative.image;
   useEffect(() => {
     let cancelled = false;
@@ -470,13 +490,13 @@ export function CreativePlanner({
   const hasImage = !!src && !!asset;
   const uploadRec =
     result && hasImage ? uploadRecommendation(result.plans, asset) : null;
-  // Selected cards when any are selected, otherwise every placement.
-  const batch = useMemo(
+  const plans = result?.plans ?? [];
+  // Every placement with a PNG, and (separately) the current selection.
+  const allBatch = useMemo(() => batchExport(result?.plans ?? [], []), [result]);
+  const selectedBatch = useMemo(
     () => batchExport(result?.plans ?? [], selected),
     [result, selected],
   );
-  const requiredCount = Object.values(creative.required).filter(Boolean).length;
-  const plans = result?.plans ?? [];
   const visible = plans.filter(
     (p) =>
       (network === "all" || p.placement.network === network) &&
@@ -492,36 +512,13 @@ export function CreativePlanner({
       : [];
   const sections = group(visible, setup, groupBy);
   const recommendedCount = plans.filter((p) => p.recommendedForGoal).length;
+  const clearFilters = () => {
+    setNetwork("all");
+    setStatus("all");
+    setRecommendedOnly(false);
+    setSelectedOnly(false);
+  };
 
-  async function upload(file?: File) {
-    if (!file) return;
-    const sequence = ++uploadSequence.current;
-    setBusy(true);
-    setError("");
-    try {
-      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
-        throw new Error("Choose a PNG, JPEG or WebP image.");
-      if (file.size > 10 * 1024 * 1024)
-        throw new Error("Use an image under 10 MB for this local preview.");
-      // Preserve original dimensions: the studio's imageData helper downsizes to
-      // 1200px, which would incorrectly reject a full-resolution vertical asset.
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () =>
-          reject(new Error("The image file could not be read."));
-        reader.readAsDataURL(file);
-      });
-      await inspectAsset(data);
-      if (sequence !== uploadSequence.current) return;
-      onChange({ ...creative, image: data });
-    } catch (e) {
-      if (sequence === uploadSequence.current)
-        setError(e instanceof Error ? e.message : "Upload failed.");
-    } finally {
-      if (sequence === uploadSequence.current) setBusy(false);
-    }
-  }
   /** Renders and downloads files one after another (no zip dependency). */
   async function exportFiles(
     files: ExportFile[],
@@ -595,330 +592,81 @@ export function CreativePlanner({
       "placement-plan-report.json",
     );
   }
-  const field = (
-    key:
-      | "brand"
-      | "headline"
-      | "longHeadline"
-      | "description"
-      | "body"
-      | "offer"
-      | "cta",
-    label: string,
-    rows = 1,
-    maxLength = 300,
-  ) => (
-    <label className="field">
-      <span>
-        {label} <small>{Array.from(creative[key]).length} characters</small>
-      </span>
-      {rows > 1 ? (
-        <textarea
-          rows={rows}
-          maxLength={maxLength}
-          value={creative[key]}
-          onChange={(e) => onChange({ ...creative, [key]: e.target.value })}
-        />
-      ) : (
-        <input
-          maxLength={maxLength}
-          value={creative[key]}
-          onChange={(e) => onChange({ ...creative, [key]: e.target.value })}
-        />
-      )}
-    </label>
-  );
+
   return (
-    <div className="creative-planner">
-      <div className="planner-intro">
-        <div>
-          <span className="eyebrow">
-            GOAL → OBJECTIVE → FORMAT → PLACEMENT
-          </span>
-          <h2>
-            Start with your creative.
-            <br />
-            <span>See every place it can run.</span>
-          </h2>
-          <p>
-            One creative, every verified placement across four networks and
-            the four assignment surfaces. Goal and filters only change the
-            view.
-          </p>
+    <div className={`platforms${selected.length ? " has-selection" : ""}`}>
+      <section className="platforms-head">
+        <div className="platforms-title">
+          <h1>Ad platforms</h1>
+          <p>Choose where this ad will appear.</p>
         </div>
-        <div className="planner-orbit" aria-hidden="true">
-          <Layers size={36} />
-          <span>
-            One creative
-            <br />
-            <b>{plans.length || "every"} placements</b>
-          </span>
-        </div>
-      </div>
-      <div className="planner-layout">
-        <aside className="planner-intake panel">
-          <h3>
-            <span className="section-number">01</span> Image & copy
-          </h3>
-          <button
-            className="planner-drop"
-            disabled={busy}
-            onClick={() => fileInput.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (!busy) void upload(e.dataTransfer.files[0]);
-            }}
-          >
-            <Upload size={24} />
-            <strong>
-              {busy ? "Inspecting your image…" : "Drop an image, or browse"}
-            </strong>
-            <small>Optional · PNG, JPG, WebP</small>
-          </button>
-          <input
-            ref={fileInput}
-            hidden
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => {
-              void upload(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-          {src && (
-            <div className="planner-source">
-              <img src={src} alt="Source creative" />
-            </div>
-          )}
-          <div className="planner-image-actions">
-            {src ? (
-              <button
-                className="text-button"
-                onClick={() => {
-                  lastImage.current = src;
-                  onChange({ ...creative, image: "" });
-                }}
-              >
-                Remove image
-              </button>
-            ) : lastImage.current ? (
-              <button
-                className="text-button"
-                onClick={() =>
-                  onChange({ ...creative, image: lastImage.current! })
-                }
-              >
-                Undo remove image
-              </button>
-            ) : null}
+        <div className="platforms-context">
+          <div className="context-thumb" aria-hidden="true">
+            {src ? <img src={src} alt="" /> : <ImagePlus size={20} />}
           </div>
-          <div className="planner-metadata" aria-live="polite">
-            {!src ? (
-              <>
-                <b>No image</b>
-                <span>
-                  Optional. Placements that need one are marked; the rest
-                  resolve as text only.
-                </span>
-              </>
-            ) : asset ? (
-              <>
-                <b>Static image</b>
-                <span>
-                  {asset.width} × {asset.height} ·{" "}
-                  {(asset.width / asset.height).toFixed(2)}:1
-                </span>
-              </>
-            ) : (
-              <span>
-                {error ? "Image unavailable" : "Reading image dimensions…"}
-              </span>
-            )}
+          <div className="context-name">
+            <strong>{projectName}</strong>
+            <button className="text-link" onClick={onEditCreative}>
+              Edit creative
+            </button>
           </div>
-          {error && (
-            <p className="planner-error" role="alert">
-              {error}
-            </p>
-          )}
-          {field("brand", "Brand / business name", 1, 60)}
-          {field("headline", "Headline", 2, 160)}
-          {field("longHeadline", "Long headline", 2, 160)}
-          {field("description", "Description", 2, 300)}
-          {field("body", "Primary text", 3, 2000)}
-          {field("offer", "Offer (optional)", 1, 300)}
-          {Array.from(creative.offer).length > offerLimit && (
-            <p className="planner-error" role="alert">
-              Shorten the offer to {offerLimit} characters or fewer.
-            </p>
-          )}
-          {field("cta", "Call to action", 1, 60)}
-          <label className="field">
-            <span>Campaign type</span>
+          <label className="context-goal">
+            <span>Goal</span>
             <select
-              value={creative.campaignType}
+              value={creative.goal}
               onChange={(e) =>
-                onChange({
-                  ...creative,
-                  campaignType: e.target.value as CampaignType,
-                })
+                onChange({ ...creative, goal: e.target.value as Goal })
               }
             >
-              {campaignTypes.map((t) => (
-                <option key={t} value={t}>
-                  {typeLabel(t)}
+              {goalOrder.map((g) => (
+                <option key={g} value={g}>
+                  {intentCopy[g].label}
                 </option>
               ))}
             </select>
           </label>
-          {creative.cta !== campaignCta[creative.campaignType] && (
-            <p className="planner-note">
-              Suggested CTA for {typeLabel(creative.campaignType).toLowerCase()}:{" "}
-              <b>{campaignCta[creative.campaignType]}</b>{" "}
-              <button
-                className="text-button"
-                onClick={() =>
-                  onChange({
-                    ...creative,
-                    cta: campaignCta[creative.campaignType],
-                  })
-                }
-              >
-                Use it
-              </button>
-            </p>
-          )}
-          <fieldset className="planner-required">
-            <legend>Required elements</legend>
-            {(Object.keys(requiredLabels) as CreativeKey[]).map((k) => (
-              <label key={k}>
-                <input
-                  type="checkbox"
-                  checked={creative.required[k]}
-                  disabled={creative.required[k] && requiredCount === 1}
-                  onChange={(e) =>
-                    onChange({
-                      ...creative,
-                      required: { ...creative.required, [k]: e.target.checked },
-                    })
-                  }
-                />{" "}
-                {requiredLabels[k]}
-              </label>
-            ))}
-            <small>
-              Required elements are never dropped. A blank required element
-              makes composed layouts invalid; at least one must stay required.
-            </small>
-          </fieldset>
-          <h3>
-            <span className="section-number">02</span> Destination
-          </h3>
-          <label className="field">
-            <span>Destination URL</span>
-            <input
-              type="url"
-              placeholder="https://yourbrand.com/product"
-              value={creative.destination}
-              onChange={(e) =>
-                onChange({ ...creative, destination: e.target.value })
-              }
-            />
-          </label>
-          <p className="planner-note">
-            Bidding, objectives and account eligibility are configured in each
-            network.
-          </p>
-        </aside>
-        <div className="planner-content">
-          <section className="panel planner-matrix">
-            <div className="planner-section-heading">
-              <div>
-                <h3>
-                  <span className="section-number">03</span> Every placement
-                </h3>
-                <p>
-                  Planning checks from verified specs, not network approval.
-                </p>
-              </div>
-              <div className="planner-export-buttons">
+        </div>
+      </section>
+      <section className="platforms-filters" aria-label="Filters">
+        <select
+          aria-label="Network"
+          value={network}
+          onChange={(e) => setNetwork(e.target.value as NetworkId | "all")}
+        >
+          <option value="all">All networks</option>
+          {networks.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.name}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label="Status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as FitStatus | "all")}
+        >
+          <option value="all">All statuses</option>
+          {fitStatuses.map((s) => (
+            <option key={s} value={s}>
+              {s} ({plans.filter((p) => p.fit === s).length})
+            </option>
+          ))}
+        </select>
+        <details className="plan-more">
+          <summary>
+            <span>More filters</span>
+            <ChevronDown size={14} className="chev" />
+          </summary>
+          <div className="plan-more-body">
+            <div className="plan-segmented" role="group" aria-label="Group by">
+              {(Object.keys(groupLabels) as GroupBy[]).map((g) => (
                 <button
-                  className="button small"
-                  disabled={!result || busy || !batch.files.length}
-                  title={
-                    selected.length
-                      ? "Exports the selected placements"
-                      : "Exports every placement with a PNG"
-                  }
-                  onClick={() => void exportFiles(batch.files, batch.skipped)}
+                  key={g}
+                  aria-pressed={groupBy === g}
+                  className={groupBy === g ? "active" : ""}
+                  onClick={() => setGroupBy(g)}
                 >
-                  <ArrowDownToLine size={15} /> Export PNGs (
-                  {batch.files.length})
-                </button>
-                <button
-                  className="button small"
-                  disabled={!result || busy}
-                  onClick={exportPlan}
-                >
-                  <ArrowDownToLine size={15} /> Export report
-                </button>
-              </div>
-            </div>
-            <div className="plan-toolbar">
-              <label>
-                Goal
-                <select
-                  value={creative.goal}
-                  onChange={(e) =>
-                    onChange({ ...creative, goal: e.target.value as Goal })
-                  }
-                >
-                  {goals.map((g) => (
-                    <option key={g}>{g}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <details className="plan-more">
-              <summary>View options</summary>
-            <div className="plan-toolbar">
-              <div className="plan-segmented" role="group" aria-label="Group by">
-                {(Object.keys(groupLabels) as GroupBy[]).map((g) => (
-                  <button
-                    key={g}
-                    aria-pressed={groupBy === g}
-                    className={groupBy === g ? "active" : ""}
-                    onClick={() => setGroupBy(g)}
-                  >
-                    {groupLabels[g]}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="plan-chips" role="group" aria-label="Network">
-              {(["all", ...networks.map((n) => n.id)] as const).map((id) => (
-                <button
-                  key={id}
-                  aria-pressed={network === id}
-                  className={`chip${network === id ? " active" : ""}`}
-                  onClick={() => setNetwork(id)}
-                >
-                  {id === "all" ? "All networks" : networkName(id)}
-                </button>
-              ))}
-            </div>
-            <div className="plan-chips" role="group" aria-label="Status">
-              {(["all", ...fitStatuses] as const).map((s) => (
-                <button
-                  key={s}
-                  aria-pressed={status === s}
-                  className={`chip${status === s ? " active" : ""}`}
-                  onClick={() => setStatus(s)}
-                >
-                  {s === "all" ? "All statuses" : s}{" "}
-                  {s !== "all" && (
-                    <b>{plans.filter((p) => p.fit === s).length}</b>
-                  )}
+                  {groupLabels[g]}
                 </button>
               ))}
             </div>
@@ -926,27 +674,18 @@ export function CreativePlanner({
               <label>
                 <input
                   type="checkbox"
-                  checked={creative.useGoalPriorities}
-                  onChange={(e) =>
-                    onChange({ ...creative, useGoalPriorities: e.target.checked })
-                  }
-                />{" "}
-                Goal sets element priorities
-              </label>
-              <label>
-                <input
-                  type="checkbox"
                   checked={recommendedOnly}
                   onChange={(e) => setRecommendedOnly(e.target.checked)}
-                />{" "}
-                Recommended for {creative.goal} only
+                />
+                Recommended for {intentCopy[creative.goal].label} only (
+                {recommendedCount})
               </label>
               <label>
                 <input
                   type="checkbox"
                   checked={selectedOnly}
                   onChange={(e) => setSelectedOnly(e.target.checked)}
-                />{" "}
+                />
                 Selected only ({selected.length})
               </label>
               <label>
@@ -954,7 +693,7 @@ export function CreativePlanner({
                   type="checkbox"
                   checked={showSetup}
                   onChange={(e) => setShowSetup(e.target.checked)}
-                />{" "}
+                />
                 Show setup-only formats
               </label>
               <label>
@@ -962,135 +701,150 @@ export function CreativePlanner({
                   type="checkbox"
                   checked={guides}
                   onChange={(e) => setGuides(e.target.checked)}
-                />{" "}
+                />
                 Safe-area guides
               </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={creative.useGoalPriorities}
+                  onChange={(e) =>
+                    onChange({ ...creative, useGoalPriorities: e.target.checked })
+                  }
+                />
+                Goal sets element priorities
+              </label>
             </div>
-            </details>
-            <p className="plan-summary" aria-live="polite">
-              {result ? (
-                <>
-                  <b>{plans.length} placements</b> ·{" "}
-                  {fitStatuses
-                    .map((s) => [s, plans.filter((p) => p.fit === s).length] as const)
-                    .filter(([, n]) => n)
-                    .map(([s, n]) => `${n} ${s}`)
-                    .join(" · ")}{" "}
-                  · {recommendedCount} recommended for {creative.goal}
-                </>
-              ) : error ? (
-                "Upload an image to plan placements."
-              ) : (
-                "Planning placements…"
-              )}
-            </p>
-            {exportStatus && (
-              <p className="planner-note plan-upload" role="status">
-                {exportStatus}
-              </p>
-            )}
-            {result && !src && (
-              <p className="planner-note">
-                Add an image to unlock{" "}
-                {plans.filter((p) => p.fit === "Needs image").length}{" "}
-                placements.
-              </p>
-            )}
-            {result && hasImage && uploadRec && (
-              <p className="planner-note plan-upload">
-                {uploadRec.alreadyMet
-                  ? "Your image meets every supported crop's minimum resolution."
-                  : `Upload at least ${uploadRec.size.width} × ${uploadRec.size.height} to meet every supported crop's minimum resolution.`}{" "}
-                Some placements will still need cropping.
-                {uploadRec.excluded.length > 0 &&
-                  ` Resolution can't fix: ${uploadRec.excluded.map((p) => p.placement.name).join(", ")}.`}
-              </p>
-            )}
-            {sections.map((s) => (
-              <section key={s.title} className="plan-group">
-                <h4>
-                  {s.title} <span>{s.plans.length}</span>
-                </h4>
-                <div className="plan-grid">
-                  {s.plans.map((p) => (
-                    <PlanCard
-                      key={p.placement.id}
-                      plan={p}
-                      creative={deferred}
-                      hasImage={hasImage}
-                      image={hasImage ? asset : null}
-                      onDownload={() =>
-                        void exportFiles(batchExport([p], [p.placement.id]).files)
-                      }
-                      onFocus={(f) => {
-                        const { [p.placement.id]: _, ...rest } =
-                          creative.focalOverrides;
-                        onChange({
-                          ...creative,
-                          focalOverrides: f
-                            ? { ...rest, [p.placement.id]: f }
-                            : rest,
-                        });
-                      }}
-                      guides={guides}
-                      selected={selected.includes(p.placement.id)}
-                      onToggle={() =>
-                        setSelected((v) =>
-                          v.includes(p.placement.id)
-                            ? v.filter((id) => id !== p.placement.id)
-                            : [...v, p.placement.id],
-                        )
-                      }
-                      onOpenStudio={() => {
-                        onChange({ ...creative, cta: creative.cta || goalCta[creative.goal] });
-                        onOpenStudio(p);
-                      }}
-                    />
-                  ))}
-                  {s.setup.map((f) => (
-                    <article key={f.id} className="plan-card setup" data-format-id={f.id}>
-                      <header>
-                        <span className="planner-network">
-                          {networkName(f.network)} · Setup only
-                        </span>
-                        <h4>{f.name}</h4>
-                      </header>
-                      <p className="planner-note">{f.unbuildableReason}</p>
-                      <a href={f.source} target="_blank" rel="noreferrer">
-                        Official guidance ↗
-                      </a>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ))}
-            {result && !sections.length && (
-              <p className="planner-empty">No placements match these filters.</p>
-            )}
-          </section>
-          <section className="panel planner-previews">
-            <div className="planner-focal">
-              {(["focalX", "focalY"] as const).map((key) => (
-                <label key={key}>
-                  {key === "focalX"
-                    ? "Horizontal crop focus"
-                    : "Vertical crop focus"}
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={creative[key]}
-                    onChange={(e) =>
-                      onChange({ ...creative, [key]: Number(e.target.value) })
-                    }
-                  />
-                  <span>{creative[key]}%</span>
-                </label>
+          </div>
+        </details>
+        <span className="plan-summary" aria-live="polite">
+          {result
+            ? `${visible.length} of ${plans.length} placements`
+            : error
+              ? "Image unavailable"
+              : "Planning placements…"}
+        </span>
+        <div className="platforms-actions">
+          <button
+            className="button small"
+            disabled={!result || busy || !allBatch.files.length}
+            onClick={() => void exportFiles(allBatch.files, allBatch.skipped)}
+          >
+            <ArrowDownToLine size={15} /> Download all PNGs ({allBatch.files.length})
+          </button>
+          <button
+            className="button small"
+            disabled={!result || busy}
+            onClick={exportPlan}
+          >
+            <FileText size={15} /> Export report
+          </button>
+        </div>
+      </section>
+      <p className="platforms-note">
+        Planning checks, not network approval.
+        {result && !src &&
+          ` Add an image in the Ad Designer to unlock ${plans.filter((p) => p.fit === "Needs image").length} more placements.`}
+        {result && hasImage && uploadRec &&
+          (uploadRec.alreadyMet
+            ? " Your image meets every supported crop's minimum resolution."
+            : ` Upload at least ${uploadRec.size.width} × ${uploadRec.size.height} to meet every crop's minimum resolution.`)}
+      </p>
+      {error && (
+        <p className="planner-error" role="alert">
+          {error}
+        </p>
+      )}
+      {exportStatus && (
+        <p className="planner-note plan-upload" role="status">
+          {exportStatus}
+        </p>
+      )}
+      <div className="planner-matrix">
+        {sections.map((s) => (
+          <section key={s.title} className="plan-group">
+            <h2>
+              {s.title} <span>{s.plans.length}</span>
+            </h2>
+            {s.note && <p className="plan-group-note">{s.note}</p>}
+            <div className="plan-grid">
+              {s.plans.map((p) => (
+                <PlanCard
+                  key={p.placement.id}
+                  plan={p}
+                  creative={deferred}
+                  hasImage={hasImage}
+                  image={hasImage ? asset : null}
+                  onDownload={() =>
+                    void exportFiles(batchExport([p], [p.placement.id]).files)
+                  }
+                  onFocus={(f) => {
+                    const { [p.placement.id]: _, ...rest } =
+                      creative.focalOverrides;
+                    onChange({
+                      ...creative,
+                      focalOverrides: f ? { ...rest, [p.placement.id]: f } : rest,
+                    });
+                  }}
+                  guides={guides}
+                  selected={selected.includes(p.placement.id)}
+                  onToggle={() =>
+                    setSelected((v) =>
+                      v.includes(p.placement.id)
+                        ? v.filter((id) => id !== p.placement.id)
+                        : [...v, p.placement.id],
+                    )
+                  }
+                  onOpenStudio={() => {
+                    onChange({ ...creative, cta: creative.cta || goalCta[creative.goal] });
+                    onOpenStudio(p);
+                  }}
+                />
+              ))}
+              {s.setup.map((f) => (
+                <article key={f.id} className="plan-card setup" data-format-id={f.id}>
+                  <header className="plan-card-head">
+                    <div className="plan-card-title">
+                      <h3>{f.name}</h3>
+                      <span>{networkName(f.network)} · Setup only</span>
+                    </div>
+                  </header>
+                  <p className="planner-note">{f.unbuildableReason}</p>
+                  <a href={f.source} target="_blank" rel="noreferrer">
+                    Official guidance ↗
+                  </a>
+                </article>
               ))}
             </div>
           </section>
-        </div>
+        ))}
+        {result && !sections.length && (
+          <p className="planner-empty">
+            No placements match these filters.{" "}
+            <button className="text-link" onClick={clearFilters}>
+              Clear filters
+            </button>
+          </p>
+        )}
       </div>
+      {selected.length > 0 && (
+        <div className="selection-bar" role="region" aria-label="Selected placements">
+          <strong>{selected.length} selected</strong>
+          <button className="text-link" onClick={() => setSelected([])}>
+            Clear selection
+          </button>
+          <button
+            className="button primary small"
+            disabled={busy || !selectedBatch.files.length}
+            onClick={() =>
+              void exportFiles(selectedBatch.files, selectedBatch.skipped)
+            }
+          >
+            <ArrowDownToLine size={15} /> Download selected (
+            {selectedBatch.files.length})
+          </button>
+        </div>
+      )}
     </div>
   );
 }

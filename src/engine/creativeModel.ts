@@ -27,6 +27,8 @@ export const campaignTypes: readonly CampaignType[] = [
   "LeadMagnet",
 ];
 export const goals: readonly Goal[] = ["Awareness", "Consideration", "Leads", "Sales"];
+/** Display order for goal menus and tiles: Sales (the brief's product ad) first. */
+export const goalOrder: readonly Goal[] = ["Sales", "Leads", "Consideration", "Awareness"];
 /** Offers longer than this are kept but flagged in the editor. */
 export const offerLimit = 40;
 

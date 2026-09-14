@@ -7,7 +7,8 @@ import { expect, test, type Page } from "@playwright/test";
 const shots = process.env.DESIGNER_SHOTS;
 
 async function open(page: Page) {
-  await page.goto("/");
+  // Home is the entry point; the designer has a direct link.
+  await page.goto("/?view=designer");
   await expect(page.getByRole("heading", { name: "Ad Designer", level: 1 })).toBeVisible();
 }
 const noHorizontalOverflow = (page: Page) =>
@@ -222,7 +223,7 @@ test.describe("desktop", () => {
       .toEqual([31, 77, 58]);
 
     // Saved with the draft: survives a reload.
-    await expect(page.getByText("Draft saved locally")).toBeVisible();
+    await expect(page.getByText("Draft saved on this device")).toBeVisible();
     await page.reload();
     await accordion(page, "Appearance").locator("summary").click();
     await expect(page.getByLabel("Auto")).not.toBeChecked();
