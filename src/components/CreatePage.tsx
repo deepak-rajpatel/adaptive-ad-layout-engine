@@ -40,6 +40,9 @@ export interface CreateForm {
   cta: string;
   brand: string;
   image: string;
+  /** Id of the image still being processed, or null. Only this request may set the image. */
+  imageRequest: number | null;
+  imageError: string;
 }
 export const emptyCreateForm: CreateForm = {
   goal: null,
@@ -49,7 +52,11 @@ export const emptyCreateForm: CreateForm = {
   cta: "",
   brand: "",
   image: "",
+  imageRequest: null,
+  imageError: "",
 };
+// Module-level so ids stay unique across Create-page visits (the form outlives the page).
+let lastImageRequest = 0;
 
 const tile: Record<Goal, { label: string; icon: typeof ShoppingCart }> = {
   Sales: { label: "Sales", icon: ShoppingCart },
@@ -74,11 +81,10 @@ export function CreatePage({
   onExample: () => void;
   onBack: () => void;
 }) {
-  const { goal, name, headline, offer, cta, brand, image } = form;
+  const { goal, name, headline, offer, cta, brand, image, imageError } = form;
   const set = (patch: Partial<CreateForm>) =>
     onFormChange((f) => ({ ...f, ...patch }));
-  const [imageError, setImageError] = useState("");
-  const [reading, setReading] = useState(false);
+  const reading = form.imageRequest !== null;
   const [tried, setTried] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const headlineRef = useRef<HTMLTextAreaElement>(null);
@@ -224,7 +230,7 @@ export function CreatePage({
                     <button type="button" className="button small" onClick={() => fileRef.current?.click()}>
                       Replace
                     </button>
-                    <button type="button" className="button small" onClick={() => set({ image: "" })}>
+                    <button type="button" className="button small" onClick={() => set({ image: "", imageRequest: null, imageError: "" })}>
                       <Trash2 size={14} /> Remove
                     </button>
                   </div>
@@ -256,15 +262,20 @@ export function CreatePage({
                   const file = e.target.files?.[0];
                   e.target.value = "";
                   if (!file) return;
-                  setReading(true);
-                  setImageError("");
+                  const request = ++lastImageRequest;
+                  set({ imageRequest: request, imageError: "" });
+                  // Applies only if this is still the pending request: a newer selection,
+                  // Remove, or a cleared form makes the result stale, and it is dropped.
+                  const settle = (patch: Partial<CreateForm>) =>
+                    onFormChange((f) =>
+                      f.imageRequest === request ? { ...f, ...patch, imageRequest: null } : f,
+                    );
                   try {
-                    const data = await imageData(file);
-                    set({ image: data });
+                    settle({ image: await imageData(file) });
                   } catch (err) {
-                    setImageError(err instanceof Error ? err.message : "The image could not be read.");
-                  } finally {
-                    setReading(false);
+                    settle({
+                      imageError: err instanceof Error ? err.message : "The image could not be read.",
+                    });
                   }
                 }}
               />
