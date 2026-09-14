@@ -1,13 +1,11 @@
 /** Creative planning profiles, separate from the layout resolver's physical surfaces.
- * Dimensions are planning targets, not an exhaustive network acceptance policy. */
-export type MediaKind = "image" | "video";
+ * Dimensions are planning targets, not an exhaustive network acceptance policy.
+ * Static images only: uploaded video placements are out of scope. */
 export type Goal = "Awareness" | "Consideration" | "Leads" | "Sales";
 export type FitStatus = "Fits" | "Needs work" | "Unsupported";
 export interface AssetInfo {
-  kind: MediaKind;
   width: number;
   height: number;
-  duration?: number;
   bytes?: number;
 }
 export interface Placement {
@@ -21,7 +19,6 @@ export interface Placement {
     | "Multi-asset"
     | "Display"
     | "Carousel";
-  kind: MediaKind;
   width: number;
   height: number;
   headlineLimit?: number;
@@ -42,7 +39,6 @@ export const placements: Placement[] = [
     network: "Meta",
     name: "Facebook & Instagram feed",
     container: "In-feed",
-    kind: "image",
     width: 1080,
     height: 1080,
     source: meta,
@@ -52,7 +48,6 @@ export const placements: Placement[] = [
     network: "Meta",
     name: "Portrait feed · 4:5",
     container: "In-feed",
-    kind: "image",
     width: 1080,
     height: 1350,
     source: meta,
@@ -62,28 +57,15 @@ export const placements: Placement[] = [
     network: "Meta",
     name: "Instagram Stories",
     container: "Vertical",
-    kind: "image",
     width: 1080,
     height: 1920,
     source: meta,
-  },
-  {
-    id: "meta-reels",
-    network: "Meta",
-    name: "Facebook & Instagram Reels",
-    container: "Vertical",
-    kind: "video",
-    width: 1080,
-    height: 1920,
-    source:
-      "https://www.facebook.com/business/ads/facebook-instagram-reels-ads",
   },
   {
     id: "meta-carousel",
     network: "Meta",
     name: "Feed carousel",
     container: "Carousel",
-    kind: "image",
     width: 1080,
     height: 1080,
     extra: "Add more cards and define their order and destinations.",
@@ -94,7 +76,6 @@ export const placements: Placement[] = [
     network: "Google",
     name: "Responsive display asset",
     container: "Multi-asset",
-    kind: "image",
     width: 1200,
     height: 628,
     headlineLimit: 30,
@@ -107,29 +88,15 @@ export const placements: Placement[] = [
     network: "Google",
     name: "Medium rectangle",
     container: "Display",
-    kind: "image",
     width: 300,
     height: 250,
     source: "https://support.google.com/google-ads/answer/7031480",
-  },
-  {
-    id: "google-shorts",
-    network: "Google",
-    name: "YouTube Shorts",
-    container: "Vertical",
-    kind: "video",
-    width: 1080,
-    height: 1920,
-    extra:
-      "Check video duration, audio rights and campaign-specific requirements.",
-    source: "https://support.google.com/google-ads/answer/16041697",
   },
   {
     id: "taboola-native",
     network: "Taboola",
     name: "Content recommendation",
     container: "Recommendation",
-    kind: "image",
     width: 1000,
     height: 600,
     extra:
@@ -142,22 +109,9 @@ export const placements: Placement[] = [
     network: "LinkedIn",
     name: "Sponsored single image",
     container: "In-feed",
-    kind: "image",
     width: 1200,
     height: 1200,
     source: "https://www.linkedin.com/help/linkedin/answer/a426534",
-  },
-  {
-    id: "tiktok-feed",
-    network: "TikTok",
-    name: "In-feed video",
-    container: "Vertical",
-    kind: "video",
-    width: 1080,
-    height: 1920,
-    extra:
-      "Check duration, audio, identity and the placement-specific safe zone.",
-    source: "https://ads.tiktok.com/help/article/tiktok-auction-in-feed-ads",
   },
 ];
 export interface FitResult {
@@ -188,15 +142,6 @@ export function assessPlacement(
       reasons: ["Asset dimensions could not be read."],
       retained: 0,
     };
-  if (asset.kind !== p.kind)
-    return {
-      placement: p,
-      status: "Unsupported",
-      reasons: [
-        `This profile needs ${p.kind === "video" ? "a video" : "an image"}; upload a separate asset.`,
-      ],
-      retained: 0,
-    };
   const sourceRatio = asset.width / asset.height;
   const targetRatio = p.width / p.height;
   const retained = Math.min(
@@ -220,11 +165,6 @@ export function assessPlacement(
     );
   if (!validDestination(destination))
     reasons.push("Add a valid HTTP or HTTPS destination URL.");
-  if (
-    asset.kind === "video" &&
-    (!Number.isFinite(asset.duration) || !asset.duration || asset.duration <= 0)
-  )
-    reasons.push("Video duration could not be verified.");
   if (p.extra) reasons.push(p.extra);
   return {
     placement: p,

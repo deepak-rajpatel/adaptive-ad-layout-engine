@@ -1813,8 +1813,7 @@ dialog::backdrop {
   height: 140px;
   background: var(--soft);
 }
-.planner-source img,
-.planner-source video {
+.planner-source img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -2046,8 +2045,7 @@ dialog::backdrop {
   overflow: hidden;
   background: var(--soft);
 }
-.native-media > img,
-.native-media > video {
+.native-media > img {
   width: 100%;
   height: 100%;
   object-fit: cover;

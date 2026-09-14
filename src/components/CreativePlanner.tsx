@@ -44,7 +44,6 @@ export function CreativePlanner({
   onOpenStudio: (p: Placement) => void;
 }) {
   const [settings, setSettings] = useState(initialSettings);
-  const [video, setVideo] = useState<string | null>(null);
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
@@ -59,18 +58,12 @@ export function CreativePlanner({
   const [guides, setGuides] = useState(true);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadSequence = useRef(0);
-  const src = video ?? creative.image;
-  useEffect(
-    () => () => {
-      if (video) URL.revokeObjectURL(video);
-    },
-    [video],
-  );
+  const src = creative.image;
   useEffect(() => {
     let cancelled = false;
     setAsset(null);
     setError("");
-    inspectAsset(src, video ? "video" : "image")
+    inspectAsset(src)
       .then((info) => {
         if (!cancelled) setAsset(info);
       })
@@ -80,7 +73,7 @@ export function CreativePlanner({
     return () => {
       cancelled = true;
     };
-  }, [src, video]);
+  }, [src]);
   useEffect(() => {
     try {
       writeLocal(settingsKey, settings);
@@ -110,47 +103,24 @@ export function CreativePlanner({
     const sequence = ++uploadSequence.current;
     setBusy(true);
     setError("");
-    let objectUrl: string | null = null;
     try {
-      if (
-        ![
-          "image/png",
-          "image/jpeg",
-          "image/webp",
-          "video/mp4",
-          "video/webm",
-        ].includes(file.type)
-      )
-        throw new Error("Choose a PNG, JPEG, WebP, MP4 or WebM file.");
-      if (file.type.startsWith("video/")) {
-        if (file.size > 100 * 1024 * 1024)
-          throw new Error("Use a video under 100 MB for this local preview.");
-        objectUrl = URL.createObjectURL(file);
-        await inspectAsset(objectUrl, "video");
-        if (sequence !== uploadSequence.current) {
-          URL.revokeObjectURL(objectUrl);
-          return;
-        }
-        setVideo(objectUrl);
-      } else {
-        if (file.size > 10 * 1024 * 1024)
-          throw new Error("Use an image under 10 MB for this local preview.");
-        // Preserve original dimensions: the studio's imageData helper downsizes to
-        // 1200px, which would incorrectly reject a full-resolution vertical asset.
-        const data = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result));
-          reader.onerror = () =>
-            reject(new Error("The image file could not be read."));
-          reader.readAsDataURL(file);
-        });
-        await inspectAsset(data, "image");
-        if (sequence !== uploadSequence.current) return;
-        setVideo(null);
-        onChange({ ...creative, image: data });
-      }
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
+        throw new Error("Choose a PNG, JPEG or WebP image.");
+      if (file.size > 10 * 1024 * 1024)
+        throw new Error("Use an image under 10 MB for this local preview.");
+      // Preserve original dimensions: the studio's imageData helper downsizes to
+      // 1200px, which would incorrectly reject a full-resolution vertical asset.
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () =>
+          reject(new Error("The image file could not be read."));
+        reader.readAsDataURL(file);
+      });
+      await inspectAsset(data);
+      if (sequence !== uploadSequence.current) return;
+      onChange({ ...creative, image: data });
     } catch (e) {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
       if (sequence === uploadSequence.current)
         setError(e instanceof Error ? e.message : "Upload failed.");
     } finally {
@@ -226,33 +196,28 @@ export function CreativePlanner({
             <strong>
               {busy ? "Inspecting your asset…" : "Drop a creative, or browse"}
             </strong>
-            <small>PNG, JPG, WebP · MP4, WebM</small>
+            <small>PNG, JPG, WebP</small>
           </button>
           <input
             ref={fileInput}
             hidden
             type="file"
-            accept="image/png,image/jpeg,image/webp,video/mp4,video/webm"
+            accept="image/png,image/jpeg,image/webp"
             onChange={(e) => {
               void upload(e.target.files?.[0]);
               e.target.value = "";
             }}
           />
           <div className="planner-source">
-            {video ? (
-              <video src={video} controls muted playsInline />
-            ) : (
-              <img src={src} alt="Source creative" />
-            )}
+            <img src={src} alt="Source creative" />
           </div>
           <div className="planner-metadata" aria-live="polite">
             {asset ? (
               <>
-                <b>{asset.kind === "image" ? "Static image" : "Video"}</b>
+                <b>Static image</b>
                 <span>
                   {asset.width} × {asset.height} ·{" "}
                   {(asset.width / asset.height).toFixed(2)}:1
-                  {asset.duration ? ` · ${asset.duration.toFixed(1)}s` : ""}
                 </span>
               </>
             ) : (
@@ -261,17 +226,6 @@ export function CreativePlanner({
               </span>
             )}
           </div>
-          {video && (
-            <>
-              <p className="planner-note">
-                Video previews stay in this session. Keep the original file for
-                your campaign.
-              </p>
-              <button className="text-button" onClick={() => setVideo(null)}>
-                Return to studio image
-              </button>
-            </>
-          )}
           {error && (
             <p className="planner-error" role="alert">
               {error}
@@ -447,7 +401,7 @@ export function CreativePlanner({
                     </span>
                     <strong>{p.name}</strong>
                     <small>
-                      {p.width} × {p.height} · {p.kind}
+                      {p.width} × {p.height}
                     </small>
                     <details>
                       <summary>
@@ -538,25 +492,11 @@ export function CreativePlanner({
                         className="native-media"
                         style={{ aspectRatio: `${p.width} / ${p.height}` }}
                       >
-                        {asset?.kind !== p.kind ? (
+                        {!asset ? (
                           <div className="native-placeholder">
                             <ImagePlus size={28} />
-                            <span>
-                              {p.kind === "video"
-                                ? "Video asset required"
-                                : "Image asset required"}
-                            </span>
+                            <span>Image asset required</span>
                           </div>
-                        ) : video ? (
-                          <video
-                            src={video}
-                            controls
-                            muted
-                            playsInline
-                            style={{
-                              objectPosition: `${creative.focalX}% ${creative.focalY}%`,
-                            }}
-                          />
                         ) : (
                           <img
                             src={src}
@@ -592,9 +532,7 @@ export function CreativePlanner({
                     </p>
                     <button
                       className="text-button"
-                      disabled={
-                        !asset || asset.kind !== "image" || p.kind !== "image"
-                      }
+                      disabled={!asset}
                       onClick={() => {
                         onChange({ ...creative, cta: goalCta[settings.goal] });
                         onOpenStudio(p);

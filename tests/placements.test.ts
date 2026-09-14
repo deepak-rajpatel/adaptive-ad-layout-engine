@@ -4,7 +4,7 @@ import {
   placements,
   validDestination,
 } from "../src/engine/placements";
-const image = { kind: "image" as const, width: 1200, height: 1200 };
+const image = { width: 1200, height: 1200 };
 const feed = placements.find((p) => p.id === "meta-feed")!;
 describe("creative placement planning", () => {
   it("requires a decoded asset and valid destination before reporting fit", () => {
@@ -22,16 +22,10 @@ describe("creative placement planning", () => {
     ).toBe("Unsupported");
     expect(validDestination("javascript:alert(1)")).toBe(false);
   });
-  it("does not mistake vertical images for video creatives", () => {
-    const p = placements.find((p) => p.id === "tiktok-feed")!;
-    expect(
-      assessPlacement(
-        { ...image, width: 1080, height: 1920 },
-        p,
-        "Hello",
-        "https://example.com",
-      ).status,
-    ).toBe("Unsupported");
+  it("offers only static-image placements", () => {
+    expect(placements.length).toBeGreaterThan(0);
+    for (const p of placements)
+      expect(["meta-reels", "google-shorts", "tiktok-feed"]).not.toContain(p.id);
   });
   it("calculates crop loss and checks resolution after cropping", () => {
     const p = placements.find((p) => p.id === "meta-story")!;
@@ -52,15 +46,8 @@ describe("creative placement planning", () => {
     expect(r.reasons.some((s) => s.includes("30 characters"))).toBe(true);
     expect(r.reasons.some((s) => s.includes("asset group"))).toBe(true);
   });
-  it("requires measured video duration and nonempty copy", () => {
-    const p = placements.find((p) => p.id === "meta-reels")!;
-    const r = assessPlacement(
-      { kind: "video", width: 1080, height: 1920 },
-      p,
-      "  ",
-      "https://example.com",
-    );
-    expect(r.reasons).toContain("Video duration could not be verified.");
+  it("requires nonempty copy", () => {
+    const r = assessPlacement(image, feed, "  ", "https://example.com");
     expect(r.reasons).toContain("Add a headline.");
   });
 });
