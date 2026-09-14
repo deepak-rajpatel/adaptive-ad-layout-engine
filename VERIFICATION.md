@@ -32,6 +32,32 @@ Plan: [docs/planner-spec.md](docs/planner-spec.md) and [docs/DECISIONS.md](docs/
   - the editor shows the "Offer" field.
 - **Not checked in a browser:** opening a real, previously saved v2 draft from browser storage. The unit tests cover parsing and identical layouts; the headless run starts with empty storage.
 
+**Step 3: catalog verification**
+- See [docs/catalog-verification.md](docs/catalog-verification.md). No code changes.
+
+**Steps 4–5: catalog, planning function, placement matrix, composed crops**
+- `npm run build` passed.
+- `npm test` 60/60 passed across 7 files. The old placements test is replaced by `tests/plan.test.ts`.
+- **Plan tests:**
+  - catalog integrity (unique ids, references, sources; every composed placement's surface validates at each accepted size; no TikTok placement);
+  - 4:5 and 1:1 images are both Ready on Meta feed;
+  - feasibility is checked before retention;
+  - Unsupported only when no size is feasible, stating the size needed;
+  - fit is independent of copy and notes;
+  - copy over a limit is an advisory warning;
+  - destinations are checked only on network placements;
+  - changing the goal re-ranks without changing the placement set;
+  - assignment surfaces are never "recommended";
+  - composed crops equal the renderer's cover crop of the resolved image box;
+  - every banner and assignment surface resolves with the sample;
+  - a per-placement focus moves only that crop;
+  - with no image, placements that need one show "Needs image" and the rest resolve as text only.
+- **Geometry harness:** 25 presets, 0 problems.
+- **Browser smoke check (headless Edge, sample image 1254 × 1254):**
+  - the planner renders 27 cards with 27 unique `data-placement-id`s, equal to the catalog;
+  - 18 layout thumbnails (the composed placements);
+  - summary "27 placements · 13 Ready · 14 Needs crop · 20 recommended for Awareness".
+
 ## Automated (`npm test`, `npm run build`)
 
 36 tests across 4 suites pass. `tsc -b` (strict) and the Vite production build pass. Local-library regression coverage verifies unreadable records survive subsequent saves and favorite changes, and malformed stored JSON is not overwritten.

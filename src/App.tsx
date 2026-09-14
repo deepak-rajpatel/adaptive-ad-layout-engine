@@ -657,29 +657,35 @@ export default function App() {
           <CreativePlanner
             creative={creative}
             onChange={setCreative}
-            onOpenStudio={(p) => {
-              setSurface({
+            onOpenStudio={(plan) => {
+              const p = plan.placement;
+              const { width, height } = (plan.chosenSize ?? p.accepts[0])
+                .recommended;
+              const identity = {
                 id: `planned-${p.id}`,
-                name: `${p.network} · ${p.name} concept`,
-                width: p.width,
-                height: p.height,
-                safeArea:
-                  p.container === "Vertical"
-                    ? { top: 250, right: 80, bottom: 340, left: 60 }
-                    : insets(
-                        Math.max(
-                          8,
-                          Math.round(Math.min(p.width, p.height) * 0.04),
-                        ),
-                      ),
-                minTextSize: p.width >= 1000 ? 24 : 12,
-                minContrast: 4.5,
-                viewingDistance: "near",
-                input: "none",
+                name: `${plan.format.name} · ${p.name}`.slice(0, 100),
+                width,
+                height,
                 category: "Creative planning",
-                source: p.source,
-                note: "Composed concept. Native networks receive media and copy separately; this canvas is not a submission-ready native ad.",
-              });
+                source: p.source || undefined,
+              };
+              // Composed placements carry their own constraints; platform placements
+              // open as a composed concept of the native image.
+              setSurface(
+                p.surface
+                  ? ({ ...p.surface, ...identity, note: p.note } as Surface)
+                  : {
+                      ...identity,
+                      safeArea: insets(
+                        Math.max(8, Math.round(Math.min(width, height) * 0.04)),
+                      ),
+                      minTextSize: width >= 1000 ? 24 : 12,
+                      minContrast: 4.5,
+                      viewingDistance: "near",
+                      input: "none",
+                      note: "Composed concept. The network receives the image and copy separately; this canvas is not a submission-ready native ad.",
+                    },
+              );
               setPage("studio");
             }}
           />

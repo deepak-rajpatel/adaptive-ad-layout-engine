@@ -1,24 +1,297 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
   Check,
   ImagePlus,
   Layers,
+  Star,
   Upload,
 } from "lucide-react";
+import { networks } from "../engine/catalog/data";
+import { planAll } from "../engine/catalog/plan";
 import {
-  assessPlacement,
-  goalCta,
-  placements,
-  type AssetInfo,
+  fitStatuses,
+  goals,
   type FitStatus,
+  type Format,
   type Goal,
-  type Placement,
-} from "../engine/placements";
+  type NetworkId,
+  type PlacementPlan,
+} from "../engine/catalog/types";
+import type { ResolvedLayout } from "../engine/layout";
+import { goalCta, type AssetInfo } from "../engine/placements";
 import { inspectAsset } from "../lib/assetInfo";
 import type { Creative } from "../lib/creative";
+import { measure } from "../lib/measure";
 import { download } from "../lib/persistence";
+import { renderDom } from "../render/dom";
+
+type GroupBy = "network" | "goal" | "size" | "status";
+const groupLabels: Record<GroupBy, string> = {
+  network: "Network",
+  goal: "Goal",
+  size: "Size",
+  status: "Status",
+};
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+const networkName = (id: NetworkId) =>
+  networks.find((n) => n.id === id)?.name ?? id;
+
+const sizeOrder = [
+  "9:16 vertical",
+  "4:5 portrait",
+  "1:1 square",
+  "1.91:1 / 16:9 landscape",
+  "4:3",
+  "Fixed banner sizes",
+  "Assignment surfaces",
+  "Other",
+];
+function sizeBucket(p: PlacementPlan) {
+  if (p.placement.network === "assignment") return "Assignment surfaces";
+  if (p.format.id === "google-display-banner") return "Fixed banner sizes";
+  const r = (p.chosenSize ?? p.placement.accepts[0]).ratio;
+  const near = (x: number) => Math.abs(r / x - 1) < 0.03;
+  if (near(9 / 16)) return "9:16 vertical";
+  if (near(4 / 5)) return "4:5 portrait";
+  if (near(1)) return "1:1 square";
+  if (near(1.91) || near(16 / 9)) return "1.91:1 / 16:9 landscape";
+  if (near(4 / 3)) return "4:3";
+  return "Other";
+}
+
+interface Section {
+  title: string;
+  plans: PlacementPlan[];
+  setup: Format[];
+}
+function group(
+  plans: PlacementPlan[],
+  setup: Format[],
+  by: GroupBy,
+): Section[] {
+  const recommendedFirst = (a: PlacementPlan, b: PlacementPlan) =>
+    Number(b.recommendedForGoal) - Number(a.recommendedForGoal);
+  const assignment = plans.filter((p) => p.placement.network === "assignment");
+  const sections: Section[] =
+    by === "network"
+      ? networks.map((n) => ({
+          title: n.name,
+          plans: plans.filter((p) => p.placement.network === n.id),
+          setup: setup.filter((f) => f.network === n.id),
+        }))
+      : by === "goal"
+        ? [
+            ...goals.map((g) => ({
+              title: g,
+              plans: plans.filter(
+                (p) =>
+                  p.placement.network !== "assignment" &&
+                  p.objectives.some((o) => o.goal === g),
+              ),
+              setup: [],
+            })),
+            { title: "Assignment surfaces", plans: assignment, setup: [] },
+          ]
+        : by === "size"
+          ? sizeOrder.map((t) => ({
+              title: t,
+              plans: plans.filter((p) => sizeBucket(p) === t),
+              setup: [],
+            }))
+          : fitStatuses.map((s) => ({
+              title: s,
+              plans: plans.filter((p) => p.fit === s),
+              setup: [],
+            }));
+  if (by !== "network" && setup.length)
+    sections.push({ title: "Setup-only formats", plans: [], setup });
+  return sections
+    .map((s) => ({ ...s, plans: [...s.plans].sort(recommendedFirst) }))
+    .filter((s) => s.plans.length || s.setup.length);
+}
+
+/** Mounts a resolved layout at native size, scaled down to fit the thumbnail box. */
+function LayoutThumb({
+  layout,
+  safeArea,
+}: {
+  layout: ResolvedLayout;
+  safeArea?: { top: number; right: number; bottom: number; left: number };
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scale = Math.min(260 / layout.width, 220 / layout.height, 1);
+  useEffect(() => {
+    const board = renderDom(layout, { guides: !!safeArea, safeArea });
+    Object.assign(board.style, {
+      transform: `scale(${scale})`,
+      transformOrigin: "top left",
+    });
+    ref.current?.replaceChildren(board);
+  }, [layout, safeArea, scale]);
+  return (
+    <div
+      ref={ref}
+      className="plan-thumb"
+      style={{ width: layout.width * scale, height: layout.height * scale }}
+      aria-hidden="true"
+    />
+  );
+}
+
+function PlatformThumb({
+  plan,
+  creative,
+  hasImage,
+}: {
+  plan: PlacementPlan;
+  creative: Creative;
+  hasImage: boolean;
+}) {
+  const size = (plan.chosenSize ?? plan.placement.accepts[0]).recommended;
+  const scale = Math.min(260 / size.width, 180 / size.height);
+  const focal = creative.focalOverrides[plan.placement.id] ?? {
+    x: creative.focalX,
+    y: creative.focalY,
+  };
+  return (
+    <div className={`native-mockup native-${slug(plan.format.container)}`}>
+      <div
+        className="native-media"
+        style={{ width: size.width * scale, height: size.height * scale }}
+      >
+        {hasImage && plan.fit !== "Needs image" ? (
+          <img
+            src={creative.image}
+            alt=""
+            style={{ objectPosition: `${focal.x}% ${focal.y}%` }}
+          />
+        ) : (
+          <div className="native-placeholder">
+            <ImagePlus size={22} />
+            <span>Image required</span>
+          </div>
+        )}
+      </div>
+      <div className="native-copy">
+        <strong>{creative.headline || "Your headline"}</strong>
+        <span className="native-cta">
+          {creative.cta || "Learn more"} <ArrowRight size={12} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function PlanCard({
+  plan,
+  creative,
+  hasImage,
+  guides,
+  selected,
+  onToggle,
+  onOpenStudio,
+}: {
+  plan: PlacementPlan;
+  creative: Creative;
+  hasImage: boolean;
+  guides: boolean;
+  selected: boolean;
+  onToggle: () => void;
+  onOpenStudio: () => void;
+}) {
+  const p = plan.placement;
+  const served = [...new Set(plan.objectives.map((o) => o.goal))];
+  const size = plan.chosenSize;
+  return (
+    <article
+      className={`plan-card${plan.recommendedForGoal ? " recommended" : ""}`}
+      data-placement-id={p.id}
+    >
+      <header>
+        <span className="planner-network">
+          {networkName(p.network)} · {plan.format.name}
+        </span>
+        <h4>{p.name}</h4>
+        <div className="plan-badges">
+          <span className={`planner-fit fit-${slug(plan.fit)}`}>
+            {plan.fit === "Ready" && <Check size={12} />}
+            {plan.fit}
+          </span>
+          {plan.layoutStatus !== "n/a" && (
+            <span className={`plan-layout layout-${plan.layoutStatus}`}>
+              Layout {plan.layoutStatus}
+            </span>
+          )}
+          {plan.recommendedForGoal && (
+            <span className="plan-recommended">
+              <Star size={11} /> Recommended
+            </span>
+          )}
+        </div>
+        {!plan.recommendedForGoal && served.length > 0 && (
+          <small className="plan-served">Better for {served.join(", ")}</small>
+        )}
+      </header>
+      <div className="plan-preview">
+        {plan.layout &&
+        (plan.layoutStatus === "ready" || plan.layoutStatus === "adapted") ? (
+          <LayoutThumb
+            layout={plan.layout}
+            safeArea={guides ? p.surface?.safeArea : undefined}
+          />
+        ) : p.surface ? (
+          <div className="native-placeholder plan-empty-thumb">
+            No valid layout at this size
+          </div>
+        ) : (
+          <PlatformThumb plan={plan} creative={creative} hasImage={hasImage} />
+        )}
+      </div>
+      <p className="plan-size">
+        {size
+          ? `${size.label} · ${size.recommended.width} × ${size.recommended.height}`
+          : `Accepts ${p.accepts.map((a) => a.label).join(", ")}`}
+        {plan.crop && ` · ${Math.round(plan.retainedArea * 100)}% of image kept`}
+      </p>
+      {plan.issues.length > 0 && (
+        <ul className="plan-issues">
+          {plan.issues.map((i, n) => (
+            <li key={n} className={`issue-${i.severity}`}>
+              {i.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      {plan.notes.length > 0 && (
+        <details className="plan-notes">
+          <summary>Notes</summary>
+          <ul>
+            {plan.notes.map((n) => (
+              <li key={n}>{n}</li>
+            ))}
+          </ul>
+          <a href={p.source || plan.format.source} target="_blank" rel="noreferrer">
+            Official guidance ↗
+          </a>
+        </details>
+      )}
+      <footer>
+        <label>
+          <input type="checkbox" checked={selected} onChange={onToggle} /> Select
+        </label>
+        <button
+          className="text-button"
+          disabled={!size}
+          onClick={onOpenStudio}
+        >
+          Open in studio <ArrowRight size={13} />
+        </button>
+      </footer>
+    </article>
+  );
+}
 
 export function CreativePlanner({
   creative,
@@ -27,27 +300,19 @@ export function CreativePlanner({
 }: {
   creative: Creative;
   onChange: (c: Creative) => void;
-  onOpenStudio: (p: Placement) => void;
+  onOpenStudio: (plan: PlacementPlan) => void;
 }) {
-  // Planner fields are part of the saved project (schema 3).
-  const settings = {
-    goal: creative.goal,
-    destination: creative.destination,
-    body: creative.body,
-  };
-  const setSettings = (next: typeof settings) =>
-    onChange({ ...creative, ...next });
   const [asset, setAsset] = useState<AssetInfo | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [network, setNetwork] = useState("All networks");
-  const [status, setStatus] = useState("All statuses");
-  const [selected, setSelected] = useState<string[]>([
-    "meta-feed",
-    "meta-story",
-    "taboola-native",
-  ]);
-  const [guides, setGuides] = useState(true);
+  const [groupBy, setGroupBy] = useState<GroupBy>("network");
+  const [network, setNetwork] = useState<NetworkId | "all">("all");
+  const [status, setStatus] = useState<FitStatus | "all">("all");
+  const [recommendedOnly, setRecommendedOnly] = useState(false);
+  const [showSetup, setShowSetup] = useState(false);
+  const [selectedOnly, setSelectedOnly] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [guides, setGuides] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const uploadSequence = useRef(0);
   const src = creative.image;
@@ -66,20 +331,32 @@ export function CreativePlanner({
       cancelled = true;
     };
   }, [src]);
-  const results = useMemo(
+  // Typing stays responsive: plans recompute from a deferred copy of the creative.
+  const deferred = useDeferredValue(creative);
+  const result = useMemo(
     () =>
       asset
-        ? placements.map((p) =>
-            assessPlacement(asset, p, creative.headline, settings.destination),
-          )
-        : [],
-    [asset, creative.headline, settings.destination],
+        ? planAll({ image: asset, creative: deferred, goal: deferred.goal, measure })
+        : null,
+    [asset, deferred],
   );
-  const filtered = results.filter(
-    (r) =>
-      (network === "All networks" || r.placement.network === network) &&
-      (status === "All statuses" || r.status === status),
+  const plans = result?.plans ?? [];
+  const visible = plans.filter(
+    (p) =>
+      (network === "all" || p.placement.network === network) &&
+      (status === "all" || p.fit === status) &&
+      (!recommendedOnly || p.recommendedForGoal) &&
+      (!selectedOnly || selected.includes(p.placement.id)),
   );
+  const setup =
+    showSetup && status === "all" && !recommendedOnly && !selectedOnly
+      ? (result?.setupOnly ?? []).filter(
+          (f) => network === "all" || f.network === network,
+        )
+      : [];
+  const sections = group(visible, setup, groupBy);
+  const recommendedCount = plans.filter((p) => p.recommendedForGoal).length;
+
   async function upload(file?: File) {
     if (!file) return;
     const sequence = ++uploadSequence.current;
@@ -110,44 +387,88 @@ export function CreativePlanner({
     }
   }
   function exportPlan() {
-    const plan = {
-      version: 1,
+    const report = {
+      version: 2,
+      kind: "placement-plan-report",
       createdAt: new Date().toISOString(),
       scope:
-        "Creative planning only; not ad-network approval. Media files are not included.",
+        "Creative planning only; not ad-network approval. The image is not included in this report.",
+      goal: creative.goal,
+      destination: creative.destination,
       creative: {
         brand: creative.brand,
         headline: creative.headline,
-        cta: goalCta[settings.goal],
+        longHeadline: creative.longHeadline,
+        description: creative.description,
+        body: creative.body,
+        offer: creative.offer,
+        cta: creative.cta,
+        focal: { x: creative.focalX, y: creative.focalY },
       },
-      strategy: settings,
-      asset,
-      focal: { x: creative.focalX, y: creative.focalY },
-      placements: results.map((r) => ({
-        ...r,
-        selected: selected.includes(r.placement.id),
+      image: asset,
+      placements: plans.map((p) => ({
+        id: p.placement.id,
+        network: p.placement.network,
+        format: p.format.name,
+        name: p.placement.name,
+        recommendedForGoal: p.recommendedForGoal,
+        fit: p.fit,
+        layoutStatus: p.layoutStatus,
+        chosenSize: p.chosenSize?.label ?? null,
+        retainedArea: p.retainedArea,
+        issues: p.issues,
+        notes: p.notes,
+        source: p.placement.source,
+        selected: selected.includes(p.placement.id),
       })),
     };
     download(
-      new Blob([JSON.stringify(plan, null, 2)], { type: "application/json" }),
-      "omniframe-placement-plan.json",
+      new Blob([JSON.stringify(report, null, 2)], { type: "application/json" }),
+      "placement-plan-report.json",
     );
   }
+  const field = (
+    key: "brand" | "headline" | "longHeadline" | "description" | "body",
+    label: string,
+    rows = 1,
+    maxLength = 300,
+  ) => (
+    <label className="field">
+      <span>
+        {label} <small>{Array.from(creative[key]).length} characters</small>
+      </span>
+      {rows > 1 ? (
+        <textarea
+          rows={rows}
+          maxLength={maxLength}
+          value={creative[key]}
+          onChange={(e) => onChange({ ...creative, [key]: e.target.value })}
+        />
+      ) : (
+        <input
+          maxLength={maxLength}
+          value={creative[key]}
+          onChange={(e) => onChange({ ...creative, [key]: e.target.value })}
+        />
+      )}
+    </label>
+  );
   return (
     <div className="creative-planner">
       <div className="planner-intro">
         <div>
           <span className="eyebrow">
-            CREATIVE → CONTAINER → PLACEMENT → STRATEGY
+            GOAL → OBJECTIVE → FORMAT → PLACEMENT
           </span>
           <h2>
             Start with your creative.
             <br />
-            <span>Discover where it belongs.</span>
+            <span>See every place it can run.</span>
           </h2>
           <p>
-            One source asset. Five networks. A clear path from idea to
-            adaptation.
+            One creative, every verified placement across four networks and
+            the four assignment surfaces. Goal and filters only change the
+            view.
           </p>
         </div>
         <div className="planner-orbit" aria-hidden="true">
@@ -155,14 +476,14 @@ export function CreativePlanner({
           <span>
             One creative
             <br />
-            <b>many possibilities</b>
+            <b>{plans.length || "every"} placements</b>
           </span>
         </div>
       </div>
       <div className="planner-layout">
         <aside className="planner-intake panel">
           <h3>
-            <span className="section-number">01</span> Asset & message
+            <span className="section-number">01</span> Image & copy
           </h3>
           <button
             className="planner-drop"
@@ -176,7 +497,7 @@ export function CreativePlanner({
           >
             <Upload size={24} />
             <strong>
-              {busy ? "Inspecting your asset…" : "Drop a creative, or browse"}
+              {busy ? "Inspecting your image…" : "Drop an image, or browse"}
             </strong>
             <small>PNG, JPG, WebP</small>
           </button>
@@ -204,7 +525,7 @@ export function CreativePlanner({
               </>
             ) : (
               <span>
-                {error ? "Asset unavailable" : "Reading asset dimensions…"}
+                {error ? "Image unavailable" : "Reading image dimensions…"}
               </span>
             )}
           </div>
@@ -213,77 +534,28 @@ export function CreativePlanner({
               {error}
             </p>
           )}
-          <label className="field">
-            <span>Brand</span>
-            <input
-              maxLength={60}
-              value={creative.brand}
-              onChange={(e) => onChange({ ...creative, brand: e.target.value })}
-            />
-          </label>
-          <label className="field">
-            <span>
-              Headline{" "}
-              <small>{Array.from(creative.headline).length} characters</small>
-            </span>
-            <textarea
-              rows={2}
-              maxLength={160}
-              value={creative.headline}
-              onChange={(e) =>
-                onChange({ ...creative, headline: e.target.value })
-              }
-            />
-          </label>
-          <label className="field">
-            <span>Primary text</span>
-            <textarea
-              rows={3}
-              maxLength={2000}
-              placeholder="Tell the story around your image…"
-              value={settings.body}
-              onChange={(e) =>
-                setSettings({ ...settings, body: e.target.value })
-              }
-            />
-          </label>
-          {Array.from(settings.body).length > 125 && (
-            <p className="planner-note">
-              Text beyond 125 characters may be collapsed in some feed previews.
-              This is a preview guideline.
-            </p>
-          )}
+          {field("brand", "Brand / business name", 1, 60)}
+          {field("headline", "Headline", 2, 160)}
+          {field("longHeadline", "Long headline", 2, 160)}
+          {field("description", "Description", 2, 300)}
+          {field("body", "Primary text", 3, 2000)}
           <h3>
-            <span className="section-number">02</span> Campaign intent
+            <span className="section-number">02</span> Destination
           </h3>
-          <label className="field">
-            <span>Goal</span>
-            <select
-              value={settings.goal}
-              onChange={(e) =>
-                setSettings({ ...settings, goal: e.target.value as Goal })
-              }
-            >
-              {Object.keys(goalCta).map((g) => (
-                <option key={g}>{g}</option>
-              ))}
-            </select>
-          </label>
           <label className="field">
             <span>Destination URL</span>
             <input
               type="url"
               placeholder="https://yourbrand.com/product"
-              value={settings.destination}
+              value={creative.destination}
               onChange={(e) =>
-                setSettings({ ...settings, destination: e.target.value })
+                onChange({ ...creative, destination: e.target.value })
               }
             />
           </label>
           <p className="planner-note">
-            Suggested CTA: <b>{goalCta[settings.goal]}</b>. Goal guides the
-            creative brief; network objectives, bidding and account eligibility
-            are configured separately.
+            Suggested CTA for {creative.goal}: <b>{goalCta[creative.goal]}</b>.
+            Bidding and account eligibility are configured in each network.
           </p>
         </aside>
         <div className="planner-content">
@@ -291,12 +563,10 @@ export function CreativePlanner({
             <div className="planner-section-heading">
               <div>
                 <h3>
-                  <span className="section-number">03</span> Placement
-                  opportunities
+                  <span className="section-number">03</span> Every placement
                 </h3>
                 <p>
-                  Geometry fit is a starting point. Each profile explains what
-                  remains.
+                  Planning checks from verified specs, not network approval.
                 </p>
               </div>
               <button
@@ -304,227 +574,163 @@ export function CreativePlanner({
                 disabled={!asset || busy}
                 onClick={exportPlan}
               >
-                <ArrowDownToLine size={15} /> Export plan
+                <ArrowDownToLine size={15} /> Export report
               </button>
             </div>
-            <div className="planner-stats">
-              {(["Fits", "Needs work", "Unsupported"] as FitStatus[]).map(
-                (s) => (
-                  <button
-                    key={s}
-                    className={status === s ? "active" : ""}
-                    aria-pressed={status === s}
-                    onClick={() => setStatus(status === s ? "All statuses" : s)}
-                  >
-                    <b>{results.filter((r) => r.status === s).length}</b>
-                    <span>{s}</span>
-                  </button>
-                ),
-              )}
-            </div>
-            <div className="planner-filters">
+            <div className="plan-toolbar">
               <label>
-                Network{" "}
+                Goal
                 <select
-                  value={network}
-                  onChange={(e) => setNetwork(e.target.value)}
+                  value={creative.goal}
+                  onChange={(e) =>
+                    onChange({ ...creative, goal: e.target.value as Goal })
+                  }
                 >
-                  {[
-                    "All networks",
-                    "Meta",
-                    "Google",
-                    "Taboola",
-                    "LinkedIn",
-                    "TikTok",
-                  ].map((n) => (
-                    <option key={n}>{n}</option>
+                  {goals.map((g) => (
+                    <option key={g}>{g}</option>
                   ))}
                 </select>
               </label>
-              <label>
-                Status{" "}
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                >
-                  {["All statuses", "Fits", "Needs work", "Unsupported"].map(
-                    (s) => (
-                      <option key={s}>{s}</option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <span>Select up to 3 to compare</span>
-            </div>
-            <div className="planner-rows">
-              {filtered.map(({ placement: p, status: fit, reasons }) => (
-                <div className="planner-row" key={p.id}>
-                  <input
-                    type="checkbox"
-                    aria-label={`Compare ${p.name}`}
-                    checked={selected.includes(p.id)}
-                    disabled={!selected.includes(p.id) && selected.length >= 3}
-                    onChange={() =>
-                      setSelected((v) =>
-                        v.includes(p.id)
-                          ? v.filter((id) => id !== p.id)
-                          : [...v, p.id],
-                      )
-                    }
-                  />
-                  <div>
-                    <span className="planner-network">
-                      {p.network} · {p.container}
-                    </span>
-                    <strong>{p.name}</strong>
-                    <small>
-                      {p.width} × {p.height}
-                    </small>
-                    <details>
-                      <summary>
-                        {fit === "Fits"
-                          ? "What was checked"
-                          : `${reasons.length} item${reasons.length > 1 ? "s" : ""} to review`}
-                      </summary>
-                      <ul>
-                        {reasons.map((r) => (
-                          <li key={r}>{r}</li>
-                        ))}
-                      </ul>
-                      <a href={p.source} target="_blank" rel="noreferrer">
-                        Official guidance ↗
-                      </a>
-                    </details>
-                  </div>
-                  <span
-                    className={`planner-fit fit-${fit.toLowerCase().replace(" ", "-")}`}
+              <div className="plan-segmented" role="group" aria-label="Group by">
+                {(Object.keys(groupLabels) as GroupBy[]).map((g) => (
+                  <button
+                    key={g}
+                    aria-pressed={groupBy === g}
+                    className={groupBy === g ? "active" : ""}
+                    onClick={() => setGroupBy(g)}
                   >
-                    {fit === "Fits" && <Check size={12} />}
-                    {fit}
-                  </span>
-                </div>
-              ))}
-              {!filtered.length && (
-                <p className="planner-empty">
-                  {asset
-                    ? "No placements match these filters."
-                    : "Upload or load an asset to see placement opportunities."}
-                </p>
-              )}
-            </div>
-            <p className="planner-note">
-              Planning profiles, not launch approval. File weight, codecs,
-              content policy and account eligibility require network review.
-              “Unsupported” applies to the selected profile, not every format on
-              that network.
-            </p>
-          </section>
-          <section className="panel planner-previews">
-            <div className="planner-section-heading">
-              <div>
-                <h3>
-                  <span className="section-number">04</span> In context
-                </h3>
-                <p>
-                  Illustrative native previews. The platform supplies its own
-                  interface.
-                </p>
+                    {groupLabels[g]}
+                  </button>
+                ))}
               </div>
-              <label className="planner-guide-toggle">
+            </div>
+            <div className="plan-chips" role="group" aria-label="Network">
+              {(["all", ...networks.map((n) => n.id)] as const).map((id) => (
+                <button
+                  key={id}
+                  aria-pressed={network === id}
+                  className={`chip${network === id ? " active" : ""}`}
+                  onClick={() => setNetwork(id)}
+                >
+                  {id === "all" ? "All networks" : networkName(id)}
+                </button>
+              ))}
+            </div>
+            <div className="plan-chips" role="group" aria-label="Status">
+              {(["all", ...fitStatuses] as const).map((s) => (
+                <button
+                  key={s}
+                  aria-pressed={status === s}
+                  className={`chip${status === s ? " active" : ""}`}
+                  onClick={() => setStatus(s)}
+                >
+                  {s === "all" ? "All statuses" : s}{" "}
+                  {s !== "all" && (
+                    <b>{plans.filter((p) => p.fit === s).length}</b>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="plan-toggles">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={recommendedOnly}
+                  onChange={(e) => setRecommendedOnly(e.target.checked)}
+                />{" "}
+                Recommended for {creative.goal} only
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selectedOnly}
+                  onChange={(e) => setSelectedOnly(e.target.checked)}
+                />{" "}
+                Selected only ({selected.length})
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={showSetup}
+                  onChange={(e) => setShowSetup(e.target.checked)}
+                />{" "}
+                Show setup-only formats
+              </label>
+              <label>
                 <input
                   type="checkbox"
                   checked={guides}
                   onChange={(e) => setGuides(e.target.checked)}
                 />{" "}
-                Safe-zone guides
+                Safe-area guides
               </label>
             </div>
-            <div className="planner-preview-grid">
-              {selected
-                .map((id) => placements.find((p) => p.id === id)!)
-                .map((p) => (
-                  <article key={p.id} className="planner-preview-card">
-                    <span className="planner-network">{p.network}</span>
-                    <h4>{p.name}</h4>
-                    <div
-                      className={`native-mockup native-${p.container.toLowerCase()}`}
-                    >
-                      <div className="native-brand">
-                        <span>{creative.brand.slice(0, 1) || "B"}</span>
-                        <div>
-                          <b>{creative.brand || "Your brand"}</b>
-                          <small>Sponsored</small>
-                        </div>
-                        <span>···</span>
-                      </div>
-                      {settings.body && p.container === "In-feed" && (
-                        <p className="native-body">
-                          {Array.from(settings.body).slice(0, 125).join("")}
-                          {Array.from(settings.body).length > 125
-                            ? "… more"
-                            : ""}
-                        </p>
-                      )}
-                      <div
-                        className="native-media"
-                        style={{ aspectRatio: `${p.width} / ${p.height}` }}
-                      >
-                        {!asset ? (
-                          <div className="native-placeholder">
-                            <ImagePlus size={28} />
-                            <span>Image asset required</span>
-                          </div>
-                        ) : (
-                          <img
-                            src={src}
-                            alt={`${p.name} crop preview`}
-                            style={{
-                              objectPosition: `${creative.focalX}% ${creative.focalY}%`,
-                            }}
-                          />
-                        )}
-                        {guides && p.container === "Vertical" && (
-                          <div className="native-safe">
-                            <span>Keep key content inside</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="native-copy">
-                        <small>
-                          {settings.destination || "Destination URL"}
-                        </small>
-                        <strong>{creative.headline || "Your headline"}</strong>
-                        <span className="native-cta">
-                          {goalCta[settings.goal]} <ArrowRight size={13} />
-                        </span>
-                      </div>
-                    </div>
-                    <p className="planner-note">
-                      {p.container === "Vertical"
-                        ? "Safe-zone overlay is approximate; inspect embedded text and focal content manually."
-                        : p.container === "Multi-asset" ||
-                            p.container === "Carousel"
-                          ? "One asset preview; the complete format needs additional assets."
-                          : "Copy and media are separate native components."}
-                    </p>
-                    <button
-                      className="text-button"
-                      disabled={!asset}
-                      onClick={() => {
-                        onChange({ ...creative, cta: goalCta[settings.goal] });
+            <p className="plan-summary" aria-live="polite">
+              {asset ? (
+                <>
+                  <b>{plans.length} placements</b> ·{" "}
+                  {fitStatuses
+                    .map((s) => [s, plans.filter((p) => p.fit === s).length] as const)
+                    .filter(([, n]) => n)
+                    .map(([s, n]) => `${n} ${s}`)
+                    .join(" · ")}{" "}
+                  · {recommendedCount} recommended for {creative.goal}
+                </>
+              ) : error ? (
+                "Upload an image to plan placements."
+              ) : (
+                "Planning placements…"
+              )}
+            </p>
+            {sections.map((s) => (
+              <section key={s.title} className="plan-group">
+                <h4>
+                  {s.title} <span>{s.plans.length}</span>
+                </h4>
+                <div className="plan-grid">
+                  {s.plans.map((p) => (
+                    <PlanCard
+                      key={p.placement.id}
+                      plan={p}
+                      creative={deferred}
+                      hasImage={!!asset}
+                      guides={guides}
+                      selected={selected.includes(p.placement.id)}
+                      onToggle={() =>
+                        setSelected((v) =>
+                          v.includes(p.placement.id)
+                            ? v.filter((id) => id !== p.placement.id)
+                            : [...v, p.placement.id],
+                        )
+                      }
+                      onOpenStudio={() => {
+                        onChange({ ...creative, cta: creative.cta || goalCta[creative.goal] });
                         onOpenStudio(p);
                       }}
-                    >
-                      Compose in layout studio <ArrowRight size={14} />
-                    </button>
-                  </article>
-                ))}
-            </div>
-            {!selected.length && (
-              <p className="planner-empty">
-                Select a placement above to preview your creative in context.
-              </p>
+                    />
+                  ))}
+                  {s.setup.map((f) => (
+                    <article key={f.id} className="plan-card setup" data-format-id={f.id}>
+                      <header>
+                        <span className="planner-network">
+                          {networkName(f.network)} · Setup only
+                        </span>
+                        <h4>{f.name}</h4>
+                      </header>
+                      <p className="planner-note">{f.unbuildableReason}</p>
+                      <a href={f.source} target="_blank" rel="noreferrer">
+                        Official guidance ↗
+                      </a>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
+            {asset && !sections.length && (
+              <p className="planner-empty">No placements match these filters.</p>
             )}
+          </section>
+          <section className="panel planner-previews">
             <div className="planner-focal">
               {(["focalX", "focalY"] as const).map((key) => (
                 <label key={key}>

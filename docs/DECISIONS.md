@@ -422,6 +422,11 @@ Each placement plan carries separate fields.
   - Objective names come from official search summaries.
   - **TikTok is unverified** (the site was unreachable), so it is not buildable.
   - Meta Stories composes at 1080×1920, because 1440×2560 exceeds the 2400 px surface limit.
+- [x] Steps 4–5: verified catalog (`src/engine/catalog/`), `planAll`, the placement matrix UI, and composed crops measured on the resolved image box. Done together, because both steps build the same planning function.
+  - 27 placements: Meta 4, Google 16 (3 platform + 13 banners), Taboola 1, LinkedIn 2, assignment 4.
+  - The engine already handles a missing image (E4 order). The planner UI can't remove an image yet; that comes in step 6.
+  - **Which formats serve which objective** is a planning assumption, not a network rule. Example: Meta right column is tagged Traffic and Sales only.
+  - **Still to do:** the compare panel is currently the "Selected only" filter over the same cards. Batch export is step 8.
 - [ ] Confirm the submission deadline. If time is short, steps 1–5 are the priority; 6–9 can shrink.
 - [ ] Send the kickoff prompt (§20) to Codex.
 - [ ] Review the step-2 report yourself: open an old project and confirm it looks the same on all four surfaces; understand every moved file.

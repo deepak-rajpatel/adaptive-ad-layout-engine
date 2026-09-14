@@ -10,7 +10,7 @@ export interface Insets {
 export type ViewingDistance = "near" | "medium" | "far";
 export type InputMode = "touch" | "pointer" | "none";
 
-interface SurfaceBase {
+export interface SurfaceBase {
   id: string;
   name: string;
   width: number;
