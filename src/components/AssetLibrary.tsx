@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Cloud, ImagePlus } from "lucide-react";
+import { Cloud, ImagePlus, Trash2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { imageData } from "../lib/persistence";
 export function AssetLibrary({
@@ -16,6 +16,7 @@ export function AssetLibrary({
   const [assets, setAssets] = useState<{ path: string; url: string }[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   useEffect(() => {
     if (!userId || !supabase) return;
     let cancelled = false;
@@ -27,10 +28,12 @@ export function AssetLibrary({
           sortBy: { column: "created_at", order: "desc" },
         });
       if (error) {
-        if (!cancelled)
+        if (!cancelled) {
+          setUnavailable(true);
           setMessage(
-            "Cloud images are unavailable until storage setup is complete.",
+            "Cloud images are not set up on this deployment yet (storage bucket missing). Local images still work.",
           );
+        }
         return;
       }
       const signed = await Promise.all(
@@ -105,6 +108,23 @@ export function AssetLibrary({
       setBusy(false);
     }
   }
+  async function removeCloud(path: string) {
+    if (!supabase || !window.confirm("Delete this image from your cloud library?"))
+      return;
+    setBusy(true);
+    try {
+      const { error } = await supabase.storage
+        .from("creative-assets")
+        .remove([path]);
+      if (error) throw error;
+      setAssets((items) => items.filter((a) => a.path !== path));
+      setMessage("Image deleted. Creatives that embed a copy are unaffected.");
+    } catch {
+      setMessage("Could not delete this image. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="asset-library">
       <p className="modal-description">
@@ -132,21 +152,30 @@ export function AssetLibrary({
         <>
           <button
             className="button full"
-            disabled={busy}
+            disabled={busy || unavailable}
             onClick={() => void upload()}
           >
             <ImagePlus size={16} /> Save current image to cloud
           </button>
           <div className="asset-grid">
             {assets.map((asset, i) => (
-              <button
-                key={asset.path}
-                disabled={busy}
-                onClick={() => void chooseCloud(asset.path)}
-                aria-label={`Use cloud image ${i + 1}`}
-              >
-                <img src={asset.url} alt={`Cloud product ${i + 1}`} />
-              </button>
+              <div className="asset-item" key={asset.path}>
+                <button
+                  disabled={busy}
+                  onClick={() => void chooseCloud(asset.path)}
+                  aria-label={`Use cloud image ${i + 1}`}
+                >
+                  <img src={asset.url} alt={`Cloud product ${i + 1}`} />
+                </button>
+                <button
+                  className="asset-delete icon-button"
+                  disabled={busy}
+                  onClick={() => void removeCloud(asset.path)}
+                  aria-label={`Delete cloud image ${i + 1}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </>

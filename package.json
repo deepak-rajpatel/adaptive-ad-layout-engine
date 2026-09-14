@@ -10,7 +10,7 @@
     "test": "node node_modules/vitest/vitest.mjs run",
     "test:watch": "node node_modules/vitest/vitest.mjs",
     "format": "node node_modules/prettier/bin/prettier.cjs --write src tests *.md *.json vite.config.ts design/README.md",
-    "benchmark": "node scripts/benchmark.ts"
+    "benchmark": "node node_modules/vitest/vitest.mjs bench --run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",

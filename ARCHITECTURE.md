@@ -1,71 +1,127 @@
 # Architecture
 
-## Data flow
+## Resolution flow
 
 ```text
-Creative + Surface
-       ↓
-Runtime validation → contrast checks
-       ↓
-Text measurement → candidate geometry search
-       ↓
-Reject overlaps / out-of-bounds / minimum violations
-       ↓
-Score viable candidates, or omit next optional element and retry
-       ↓
-Resolution { status, elements, omitted, decisions, errors }
-       ↓
-DOM preview    Canvas preview / PNG export
+AdSpec (defineAd)  +  Surface (defineSurface)  +  Measure (injected)
+        │                    │                        │
+        └──────────► resolve()  src/engine/resolver.ts ◄┘
+                        │  1. validateSpec + validateSurface  → "invalid" + reasons
+                        │  2. contrast checks                → "impossible" + reasons
+                        │  3. degradation ladder × arrangements × width shares
+                        │  4. geometryErrors() on every candidate
+                        │  5. score survivors, or omit next optional element and retry
+                        ▼
+                  ResolvedLayout  src/engine/layout.ts
+                        │  (boxes, lines, font sizes, colors, per-element explanations)
+          ┌─────────────┴─────────────┐
+   renderDom()  src/render/dom.ts   renderCanvas()  src/render/canvas.ts
+          │                           │
+   React <Preview> only mounts and zooms the artboard; it makes no layout decisions.
 ```
 
-## Boundaries
+## Modules
 
-| Module                            | Responsibility                                                                         |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| `src/engine/types.ts`             | Typed creative, surface, box, and result contracts                                     |
-| `src/engine/resolve.ts`           | Pure geometry algorithm and runtime validation; no React or browser dependency         |
-| `src/lib/measure.ts`              | Browser Canvas measurement adapter, using the same Arial font and weights as rendering |
-| `src/components/Preview.tsx`      | Displays a resolution as DOM or Canvas, including focal-point cover cropping           |
-| `src/lib/persistence.ts`          | Validated JSON import, browser storage, image normalization, and download helpers      |
-| `src/components/AssetLibrary.tsx` | Reusable local images and user-scoped private Supabase storage                         |
-| `src/App.tsx`                     | Editor, constraints, library workflow, and authentication orchestration                |
-| `supabase/migrations`             | Explicit database grants, row ownership policies, and private asset bucket             |
+| Module | Responsibility | Depends on |
+| --- | --- | --- |
+| `src/engine/spec.ts` | `AdSpec`, `ElementSpec`, `Role`, `Priority`, `defineAd`, runtime `validateSpec` | nothing |
+| `src/engine/surfaces.ts` | `Surface` (discriminated by `input`), `defineSurface`, `validateSurface`, safe-area helpers | `layout.ts` types |
+| `src/engine/text.ts` | `Measure` type, measured word wrap with optional hyphenation, one-line ellipsis truncation | nothing |
+| `src/engine/contrast.ts` | WCAG contrast ratio; readable button text color | nothing |
+| `src/engine/resolver.ts` | The algorithm: size plans, candidate generation, validation, scoring, explanations | the four above |
+| `src/engine/layout.ts` | `ResolvedLayout` output contract consumed by renderers | `spec.ts` types |
+| `src/render/dom.ts` | Framework-free DOM renderer | `layout.ts` |
+| `src/render/canvas.ts` | Canvas 2D renderer and PNG export source | `layout.ts` |
+| `src/lib/creative.ts` | Editor content model and `toSpec()` conversion into an `AdSpec` | `spec.ts` |
+| `src/lib/data.ts` | Surface presets as plain data (required four, stress, IAB, social, custom) | `surfaces.ts` |
+| `src/lib/measure.ts` | Browser adapter: Canvas `measureText` with the renderers' font stack | `text.ts` |
+| `src/lib/persistence.ts` | Local storage, JSON import/export, upgrade of pre-brief saved data | `creative.ts`, `surfaces.ts` |
+| `src/App.tsx`, `src/components/*` | Editor, inspector, library, auth, cloud UI | everything above |
+| `supabase/migrations` | Tables, row ownership policies, private image bucket | — |
 
-## Candidate search
+The engine folder imports nothing from React, the DOM, or `src/lib`. A new surface is a data entry in `data.ts` (or any object passing `validateSurface`); a new renderer only reads `ResolvedLayout`. Neither touches `resolver.ts`.
 
-The available safe rectangle is the surface minus its inset. The solver uses dimension-derived spacing and preferred type sizes. It explores:
+## TypeScript design
 
-- Stack: ordered elements in a vertical flow; the image consumes remaining height.
-- Split: image and text columns with several width allocations.
-- Strip: image, primary copy, and offer/action columns with several allocations.
-- Gallery: primary copy above an image and action row.
+- **Role determines type.** `RoleTypes` maps each role to its one legal element type, and `ElementSpec` is a discriminated union over roles. `{ role: "hero", type: "text" }`, an unknown role, or `priority: 9` do not compile.
+- **Truncation is only legal on secondary text.** `truncate?: R extends "secondary" ? boolean : never`.
+- **Interaction constraints are a union.** `Surface` is `{ input: "touch" | "pointer"; minTapTarget: number } | { input: "none"; minTapTarget?: never }`. A broadcast surface with a tap target is a compile error.
+- **`defineAd` / `defineSurface`** use `const` type parameters so literal roles and ids are preserved, and they also run the runtime validators, so data-level errors (duplicate ids, empty copy, unsafe image URLs, a far viewing distance with 14 px text, a safe area leaving under 32 px) throw immediately with readable messages.
+- **Data from outside** (imports, localStorage, Supabase rows) is `unknown` until `validateSpec` / `validateSurface` pass; the resolver re-validates and returns `status: "invalid"` with reasons rather than throwing.
+- **The output is renderer-ready.** `ResolvedElement` is a union of `ResolvedText` (`kind: "text" | "button"`) and `ResolvedImage`, each with absolute boxes, font size, weight, line height, pre-wrapped lines, colors, radius, and an `explanation` array. Renderers never measure, wrap, or choose colors.
 
-Each candidate wraps text with an injected width measurement function. Line heights, button padding, and target minima determine actual box heights. The engine tests geometry after placement. It ranks viable candidates by closeness to the arrangement's preferred aspect ratio plus a typography-size reward. Different surface dimensions select different geometries without consulting names or IDs.
+`tests/types.test.ts` holds `@ts-expect-error` cases; `npm run build` (`tsc -b`) fails if any of them stops being an error.
 
-The bounded search evaluates up to 40 arrangement/width/scale combinations per active-element set, with up to four active sets (five elements down to mandatory headline and CTA). Text measurement cost is proportional to copy length and candidate count. There is no recursive unbounded solver.
+## The algorithm
 
-Priority is lexicographic at the element-retention level: every candidate preserving the current active set is considered before any additional omission. Optional elements are sorted by numeric priority, with declarative element order breaking ties. Headline and CTA remain mandatory regardless of their numeric priority.
+### Base sizes
 
-## Correctness and rendering
+The safe box is the surface minus its four insets. A base unit is `max(minTextSize, min(48, 6% of safe width, 16% of safe height))`. Preferred sizes are multiples of it: branding 0.78, headline 2.2, price 1.3, CTA 0.85. Width drives type size, so losing height does not silently scale all text; it forces the degradation ladder instead.
 
-A valid output has positive finite rectangles inside the safe area, no pairwise overlap, text at or above minimum font size, and a CTA meeting width and height minima. A separate geometry validator checks those properties. Invalid input and physically impossible input are distinct statuses.
+### Degradation ladder (size plans)
 
-DOM and Canvas consume the same lines, font sizes, line heights, and rectangles. The artboard is zoomed for viewing; export stays at the requested pixel dimensions. Images are cropped intentionally inside their boxes, using the same focal-point math for both backends.
+For the current element set, `sizePlans()` produces an ordered list:
 
-Updates use a short whole-artboard reveal rather than interpolating independent rectangles through one another. Reduced-motion preferences disable animation. The built-in system font avoids a webfont download race. No runtime text is injected as HTML.
+1. All text at preferred size.
+2. For each priority level present, from the least important (highest number) up: that level's text at 80%, then 62%. Earlier (less important) levels stay reduced.
+3. When a level containing truncatable secondary text has been reduced, a plan that truncates it to one line with an ellipsis.
 
-## Persistence and security
+So an element of priority `p` is never reduced while any element with priority `> p` is still above its smallest step. Text never goes below `minTextSize`; the tap target never goes below `minTapTarget`.
 
-Guest drafts and saved versions use separate localStorage keys. Storage errors are reported; a failed write is not labeled saved. Imports are validated before use, and unsafe metadata links are removed. JSON exports embed image data rather than temporary object URLs.
+### Candidates
 
-Supabase Auth provides sessions and recovery. Publishable client configuration is intentionally public; authorization lives in database/storage policies. Every creative includes an owner UUID, and all four CRUD operations are restricted to that owner. Cross-user ownership changes fail policy checks. Cloud list responses are discarded when the signed-in identity changes during the request.
+Each plan is tried in four arrangement families, each with several width shares (10 geometry variants in total):
 
-Private images are stored under `user-id/random-id.webp`. Reads/uploads require that folder owner. A signed URL is used only to display the library thumbnail. When selected, the image is downloaded into an embedded snapshot so the creative remains stable across URL expiration. The image-library upload is explicit, not an automatic side effect of choosing a local file.
+- **stack** — reading order top to bottom; the image takes the height left after text is measured.
+- **gallery** — branding and headline across the top; image and offer column below. Skipped when there is no image.
+- **split** — image column beside a vertically centred text column.
+- **strip** — image tile, message column, then an offer/CTA column.
 
-The database test suite applies the actual migration SQL twice and checks isolation with two synthetic users under the authenticated role. This validates SQL semantics locally; real email delivery and deployed auth redirects still need a configured Supabase project.
+Text is wrapped with the injected `Measure`. Headline and secondary text may hyphenate words wider than the column; CTA and branding may not. The CTA is sized to its label plus padding, never below the tap target. Any candidate failing `geometryErrors` (non-finite or empty boxes, outside the safe area, text below minimum, CTA below target, any pairwise overlap) is discarded.
+
+### Choosing and omitting
+
+Stages are strictly ordered. The resolver walks the size plans in order and stops at the **first plan with any valid candidate**; scores only compare arrangements within that plan. So text is never reduced while some arrangement fits it at a less degraded stage, and a nicer-looking arrangement can never buy extra shrinking. Within the chosen plan, candidates are scored:
+
+```text
+score = −40 · |ln(surfaceRatio / idealRatio[arrangement])|
+        + 15 · (priority-weighted share of preferred text size kept)
+        + 10 · (image area / surface area)
+        − 20 · (any truncation)
+```
+
+Ideal ratios: stack 0.56, gallery 1, split 1.8, strip 5.8. The highest score wins; iteration order breaks ties, so output is deterministic. Omission is lexicographic: every plan and arrangement is tried with the current elements before anything is dropped. Only then is the next optional element omitted — highest priority number first, later-declared first on ties — and the search repeats. Required elements (`required: true`; headline and CTA in the demo) are never omitted. If only required elements remain and nothing fits, the result is `impossible` with a reason.
+
+### Explanations
+
+Every resolved element carries its slot ("Right text column, vertically centred of the split arrangement, at (…)"), its size and whether and why it was reduced, whether it sits at the surface minimum, how many measured lines it wraps to and at what width, truncation, and tap-target compliance. `decisions` records the chosen arrangement with the runner-up scores, the degradation plan applied, and each omission.
+
+### Cost
+
+At most about 7 plans × 10 geometry variants per element set, and at most four element sets. There is no recursion and no unbounded search. `npm run benchmark` measures it with a deterministic width stub.
+
+## Correctness guarantees
+
+- Valid output (`ready` / `adapted`) always passes `geometryErrors`: inside the safe area, no overlaps, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces.
+- `invalid` (bad input) and `impossible` (valid input that cannot fit or fails contrast) are distinct and both carry reasons. Neither returns elements.
+- No copy is silently cut: text wraps; only `truncate: true` secondary text may end in an ellipsis, and that is reported in its explanation and the decisions.
+- Resolution depends only on dimensions and constraints. `tests/engine.test.ts` checks that renaming a surface yields an identical result.
+
+## Extending the constraint model
+
+- **Broadcast-safe areas**: already expressed as per-side insets (the lower-third uses 10% title-safe margins left and right). Action-safe versus title-safe could become two inset sets, with images allowed in action-safe and text restricted to title-safe.
+- **Print bleed**: add a `bleed` inset outside the trim size. Background and images extend into it; the resolver keeps text inside `safeArea` exactly as now. The renderer would draw the artboard at trim + bleed.
+
+## Rendering and export
+
+DOM and Canvas consume the same `ResolvedLayout`: identical boxes, lines, font sizes, line heights, and colors. Images are cover-cropped with the same focal-point math. The editor zooms the native-size artboard to fit; PNG export renders at the surface's real pixel size. The artboard fades in on each update; reduced-motion preferences disable the animation.
+
+## Persistence and cloud
+
+Guest drafts and saved versions live in localStorage. `parseProject` validates and upgrades anything read back: projects saved before the brief-aligned model (1–100 priorities where higher meant more important, a single `safe` inset, `minFont` / `minTarget`) are converted, and the old `forma:` storage keys are still read.
+
+Supabase provides email auth. The `creatives` table and the private `creative-assets` bucket are owner-scoped by row-level and storage policies (select, insert, update, delete); `tests/database.test.ts` runs the real migration SQL against PGlite with two synthetic users. When the deployment's tables or bucket are missing, the app detects PostgREST `PGRST205` or the storage error, disables cloud save and upload, and says so, instead of failing silently.
 
 ## Tradeoffs
 
-The solver deliberately uses a small, inspectable candidate family. It can report impossible where a more sophisticated solver might find another layout. It favors predictable behavior and explainability over arbitrary visual compositions. There is no claim of conversion optimization, platform approval, or global optimality.
-
-Snapshots embed images for portability. This trades storage efficiency for reliable recovery and simple ownership. A larger product could normalize asset references, add version tables, paginate the creative list, and garbage-collect unused uploads. These extensions are not implied by the current app.
+The candidate family is small and inspectable. A general solver could find compositions this one reports as impossible, or score layouts differently. One element per role keeps the resolver readable; multiple secondary lines or a logo image would need slot rules for each role. The score weights are hand-tuned for predictability, not learned, and make no claim about conversion.

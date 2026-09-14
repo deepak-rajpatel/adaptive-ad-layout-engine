@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowDownToLine,
   ArrowRight,
@@ -36,8 +29,17 @@ import {
   X,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
-import type { Creative, Surface } from "./engine/types";
-import { ids, resolve } from "./engine/resolve";
+import type { Priority } from "./engine/spec";
+import {
+  distanceTextFloor,
+  insets,
+  type InputMode,
+  type Surface,
+  type ViewingDistance,
+} from "./engine/surfaces";
+import { resolve } from "./engine/resolver";
+import { renderCanvas } from "./render/canvas";
+import { toSpec, type Creative } from "./lib/creative";
 import { sample, surfaces } from "./lib/data";
 import { measure } from "./lib/measure";
 import { supabase } from "./lib/supabase";
@@ -45,24 +47,42 @@ import {
   download,
   draftKey,
   imageData,
-  libraryKey,
   parseProject,
   readLibrary,
   readLocal,
+  schemaVersion,
+  themeKey,
+  toSaved,
   writeLocal,
+  writeLibrary,
   type SavedCreative,
 } from "./lib/persistence";
-import { paint, Preview } from "./components/Preview";
+import { Preview } from "./components/Preview";
 import { AssetLibrary } from "./components/AssetLibrary";
+import { Modal } from "./components/Modal";
+import { NumberField } from "./components/NumberField";
 
 function initialDraft() {
+  let draft: { creative: Creative; surface: Surface };
   try {
-    return parseProject(
+    draft = parseProject(
       readLocal(draftKey, { creative: sample, surface: surfaces[3] }),
     );
   } catch {
-    return { creative: sample, surface: surfaces[3] };
+    draft = { creative: sample, surface: surfaces[3] };
   }
+  // Shareable review links: ?surface=kiosk&height=420 opens that preset directly.
+  const params = new URLSearchParams(window.location.search);
+  const preset = surfaces.find((s) => s.id === params.get("surface"));
+  if (!preset) return draft;
+  const height = Number(params.get("height"));
+  return {
+    ...draft,
+    surface:
+      params.has("height") && height >= 140 && height <= 2400
+        ? { ...preset, height }
+        : preset,
+  };
 }
 const draft = initialDraft();
 const errorText = (e: unknown) =>
@@ -71,6 +91,16 @@ const errorText = (e: unknown) =>
     : typeof e === "object" && e && "message" in e
       ? String(e.message)
       : "Something went wrong. Please try again.";
+// PostgREST reports a missing table as PGRST205; Postgres as 42P01.
+const setupMissing = (code?: string) => code === "PGRST205" || code === "42P01";
+const setupMessage =
+  "Cloud library is not set up on this deployment yet: its database tables are missing. Local saving works. The project owner must run the Supabase migrations listed in the README.";
+const kioskPreset = surfaces.find((s) => s.id === "kiosk")!;
+const priorityLabels: Record<"brand" | "image" | "price", string> = {
+  brand: "Branding",
+  image: "Product image",
+  price: "Offer / price",
+};
 
 export default function App() {
   const [creative, setCreative] = useState<Creative>(draft.creative);
@@ -80,14 +110,24 @@ export default function App() {
   const [renderer, setRenderer] = useState<"dom" | "canvas">("dom");
   const [guides, setGuides] = useState(false);
   const [compare, setCompare] = useState(false);
-  const [dark, setDark] = useState(() => readLocal("forma:dark", false));
+  const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
   const [draftStatus, setDraftStatus] = useState("Draft restored");
-  const [library, setLibrary] = useState<SavedCreative[]>(readLibrary);
+  const [initialLibrary] = useState(readLibrary);
+  const [library, setLibrary] = useState<SavedCreative[]>(initialLibrary.items);
+  useEffect(() => {
+    if (initialLibrary.skipped)
+      setMessage(
+        `${initialLibrary.skipped} saved version${initialLibrary.skipped > 1 ? "s" : ""} in this browser could not be read and ${initialLibrary.skipped > 1 ? "are" : "is"} hidden. The stored data has not been deleted.`,
+      );
+  }, [initialLibrary]);
   const [cloudItems, setCloudItems] = useState<SavedCreative[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [cloudError, setCloudError] = useState("");
   const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloudSetup, setCloudSetup] = useState<"unknown" | "ready" | "missing">(
+    "unknown",
+  );
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -109,23 +149,49 @@ export default function App() {
   const uploadRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const activeUserId = useRef<string | null>(null);
+  const spec = useMemo(() => toSpec(creative), [creative]);
   const result = useMemo(
-    () => resolve(creative, surface, measure),
-    [creative, surface],
+    () => resolve(spec, surface, measure),
+    [spec, surface],
   );
   const coreResults = useMemo(
-    () => surfaces.slice(0, 4).map((s) => resolve(creative, s, measure)),
-    [creative],
+    () => surfaces.slice(0, 4).map((s) => resolve(spec, s, measure)),
+    [spec],
   );
   const valid = result.status === "ready" || result.status === "adapted";
   const update = <K extends keyof Creative>(key: K, value: Creative[K]) =>
     setCreative((c) => ({ ...c, [key]: value }));
-  const updateSurface = (key: keyof Surface, value: number) =>
-    setSurface((s) => ({ ...s, [key]: value }));
+  // Editing a preset's dimensions turns it into a custom surface, so the UI
+  // never labels altered geometry with a platform preset's name.
+  const updateSurface = (patch: Record<string, unknown>) =>
+    setSurface((s) => {
+      const next = { ...s, ...patch } as Surface;
+      if (JSON.stringify(next) === JSON.stringify(s)) return s;
+      const custom = surfaces.find((v) => v.id === "custom")!;
+      return s.id === "custom"
+        ? next
+        : ({
+            ...next,
+            id: custom.id,
+            name: custom.name,
+            category: custom.category,
+            note: undefined,
+            source: undefined,
+          } as Surface);
+    });
+  const setInput = (input: InputMode) =>
+    updateSurface(
+      input === "none"
+        ? { input, minTapTarget: undefined }
+        : {
+            input,
+            minTapTarget: surface.input === "none" ? 44 : surface.minTapTarget,
+          },
+    );
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     try {
-      writeLocal("forma:dark", dark);
+      writeLocal(themeKey, dark);
     } catch {
       /* Theme remains usable without persistence. */
     }
@@ -133,7 +199,7 @@ export default function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        writeLocal(draftKey, { creative, surface });
+        writeLocal(draftKey, { version: schemaVersion, creative, surface });
         setDraftStatus("Draft saved locally");
       } catch {
         setDraftStatus("Storage full — export JSON to keep your work");
@@ -173,21 +239,24 @@ export default function App() {
       .select("*")
       .order("updated_at", { ascending: false });
     if (activeUserId.current !== requestUserId) return;
-    if (error)
+    if (error) {
+      const missing = setupMissing(error.code);
+      setCloudSetup(missing ? "missing" : "unknown");
       setCloudError(
-        `Cloud library unavailable: ${error.message}. Local saving is available.`,
+        missing
+          ? setupMessage
+          : `Cloud library unavailable: ${error.message}. Local saving is available.`,
       );
-    else
-      setCloudItems(
-        (data || []).filter((item) => {
-          try {
-            parseProject(item);
-            return true;
-          } catch {
-            return false;
-          }
-        }) as SavedCreative[],
-      );
+    } else {
+      setCloudSetup("ready");
+      const rows = data || [];
+      const items = rows.flatMap(toSaved);
+      setCloudItems(items);
+      if (items.length < rows.length)
+        setCloudError(
+          `${rows.length - items.length} cloud version(s) could not be read and are hidden. They have not been deleted.`,
+        );
+    }
     setCloudLoading(false);
   }
   useEffect(() => {
@@ -199,7 +268,7 @@ export default function App() {
     }
   }, [user?.id]); // User-scoped library is cleared on sign out.
   function persist(items: SavedCreative[]) {
-    writeLocal(libraryKey, items);
+    writeLibrary(items);
     setLibrary(items);
   }
   async function auth(event: FormEvent) {
@@ -327,12 +396,12 @@ export default function App() {
   async function exportPng() {
     try {
       const canvas = document.createElement("canvas");
-      await paint(canvas, creative, surface, result);
+      await renderCanvas(canvas, result);
       const blob = await new Promise<Blob | null>((done) =>
         canvas.toBlob(done),
       );
       if (!blob) throw new Error("Export failed.");
-      download(blob, `forma-${surface.id}.png`);
+      download(blob, `omniframe-${surface.id}.png`);
       setMessage(`Exported ${surface.width} × ${surface.height}px PNG.`);
     } catch (e) {
       setMessage(
@@ -358,14 +427,18 @@ export default function App() {
         new Blob(
           [
             JSON.stringify(
-              { version: 1, creative: { ...creative, image }, surface },
+              {
+                version: schemaVersion,
+                creative: { ...creative, image },
+                surface,
+              },
               null,
               2,
             ),
           ],
           { type: "application/json" },
         ),
-        "forma-creative.json",
+        "omniframe-creative.json",
       );
       setMessage("Exported portable JSON with the product image embedded.");
     } catch (e) {
@@ -415,6 +488,16 @@ export default function App() {
     }
   }
   const selectedLibrary = libraryMode === "cloud" ? cloudItems : library;
+  const savedResults = useMemo(
+    () =>
+      new Map(
+        selectedLibrary.map((item) => [
+          item.id,
+          resolve(toSpec(item.creative), item.surface, measure),
+        ]),
+      ),
+    [selectedLibrary],
+  );
   const filtered = selectedLibrary.filter(
     (item) =>
       (!favoritesOnly || item.favorite) &&
@@ -430,9 +513,9 @@ export default function App() {
         <button
           className="wordmark"
           onClick={() => setPage("studio")}
-          aria-label="Forma studio"
+          aria-label="Omniframe studio"
         >
-          <span className="brand-mark">f</span>forma
+          <span className="brand-mark">o</span>omniframe
           <span className="wordmark-dot">.</span>
         </button>
         <nav aria-label="Main navigation">
@@ -743,30 +826,31 @@ export default function App() {
                     Element priorities <ChevronDown size={14} />
                   </summary>
                   <p className="help-text">
-                    Lower priority elements yield first. Headline and CTA always
-                    stay mandatory.
+                    1 is most important. Higher numbers shrink first, then
+                    drop. Headline (priority {creative.priorities.headline}) and
+                    CTA (priority {creative.priorities.cta}) are required.
                   </p>
-                  {ids
-                    .filter((id) => id !== "headline" && id !== "cta")
-                    .map((id) => (
-                      <label className="range-field" key={id}>
-                        <span>
-                          {id} <b>{creative.priorities[id]}</b>
-                        </span>
-                        <input
-                          type="range"
-                          min="1"
-                          max="100"
-                          value={creative.priorities[id]}
-                          onChange={(e) =>
-                            update("priorities", {
-                              ...creative.priorities,
-                              [id]: +e.target.value,
-                            })
-                          }
-                        />
-                      </label>
-                    ))}
+                  {(["brand", "image", "price"] as const).map((id) => (
+                    <label className="range-field" key={id}>
+                      <span>
+                        {priorityLabels[id]}{" "}
+                        <b>Priority {creative.priorities[id]}</b>
+                      </span>
+                      <input
+                        type="range"
+                        min="1"
+                        max="5"
+                        step="1"
+                        value={creative.priorities[id]}
+                        onChange={(e) =>
+                          update("priorities", {
+                            ...creative.priorities,
+                            [id]: +e.target.value as Priority,
+                          })
+                        }
+                      />
+                    </label>
+                  ))}
                 </details>
                 <div className="editor-bottom">
                   <button onClick={() => importRef.current?.click()}>
@@ -826,7 +910,6 @@ export default function App() {
                     </button>
                   </div>
                   <Preview
-                    creative={creative}
                     surface={surface}
                     result={result}
                     renderer={renderer}
@@ -871,7 +954,6 @@ export default function App() {
                       >
                         <div className="surface-mini">
                           <Preview
-                            creative={creative}
                             surface={s}
                             result={coreResults[i]}
                             maxHeight={compare ? 210 : 105}
@@ -934,32 +1016,68 @@ export default function App() {
                 </label>
                 <div className="two-fields">
                   {(["width", "height"] as const).map((key) => (
-                    <label className="field" key={key}>
-                      <span>
-                        {key} <small>px</small>
-                      </span>
-                      <input
-                        type="number"
-                        min="32"
-                        max="2400"
-                        value={surface[key]}
-                        onChange={(e) => updateSurface(key, +e.target.value)}
-                      />
-                    </label>
+                    <NumberField
+                      key={key}
+                      label={key}
+                      unit="px"
+                      min={32}
+                      max={2400}
+                      value={surface[key]}
+                      onCommit={(v) => updateSurface({ [key]: v })}
+                    />
                   ))}
                 </div>
                 <label className="range-field">
                   <span>
-                    Safe area <b>{surface.safe}px</b>
+                    Safe area (all sides){" "}
+                    <b>
+                      {surface.safeArea.top}/{surface.safeArea.right}/
+                      {surface.safeArea.bottom}/{surface.safeArea.left}px
+                    </b>
                   </span>
                   <input
                     type="range"
                     min="0"
-                    max="120"
-                    value={surface.safe}
-                    onChange={(e) => updateSurface("safe", +e.target.value)}
+                    max="200"
+                    value={Math.max(...Object.values(surface.safeArea))}
+                    onChange={(e) =>
+                      updateSurface({ safeArea: insets(+e.target.value) })
+                    }
                   />
                 </label>
+                <div className="two-fields">
+                  <label className="field">
+                    <span>Viewing distance</span>
+                    <select
+                      value={surface.viewingDistance}
+                      onChange={(e) => {
+                        const d = e.target.value as ViewingDistance;
+                        updateSurface({
+                          viewingDistance: d,
+                          minTextSize: Math.max(
+                            surface.minTextSize,
+                            distanceTextFloor[d],
+                          ),
+                        });
+                      }}
+                    >
+                      <option value="near">Near</option>
+                      <option value="medium">Medium</option>
+                      <option value="far">Far</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Input</span>
+                    <select
+                      value={surface.input}
+                      onChange={(e) => setInput(e.target.value as InputMode)}
+                    >
+                      <option value="touch">Touch</option>
+                      <option value="pointer">Pointer</option>
+                      <option value="none">None</option>
+                    </select>
+                  </label>
+                </div>
                 <button
                   className={`guide-toggle ${guides ? "active" : ""}`}
                   onClick={() => setGuides(!guides)}
@@ -974,28 +1092,35 @@ export default function App() {
                   </span>
                 </div>
                 <div className="two-fields">
-                  {(["minFont", "minTarget"] as const).map((key) => (
-                    <label className="field" key={key}>
-                      <span>
-                        {key === "minFont" ? "Min. text" : "Min. target"}
-                        <small>px</small>
-                      </span>
-                      <input
-                        type="number"
-                        min={key === "minFont" ? 10 : 24}
-                        max={key === "minFont" ? 96 : 120}
-                        value={surface[key]}
-                        onChange={(e) => updateSurface(key, +e.target.value)}
-                      />
-                    </label>
-                  ))}
+                  <NumberField
+                    label="Min. text"
+                    unit="px"
+                    min={distanceTextFloor[surface.viewingDistance]}
+                    max={120}
+                    value={surface.minTextSize}
+                    onCommit={(v) => updateSurface({ minTextSize: v })}
+                  />
+                  {surface.input !== "none" ? (
+                    <NumberField
+                      label="Min. tap target"
+                      unit="px"
+                      min={24}
+                      max={200}
+                      value={surface.minTapTarget}
+                      onCommit={(v) => updateSurface({ minTapTarget: v })}
+                    />
+                  ) : (
+                    <p className="help-text">
+                      Display-only surface: no tap target applies.
+                    </p>
+                  )}
                 </div>
                 <label className="field">
                   <span>Required contrast</span>
                   <select
                     value={surface.minContrast}
                     onChange={(e) =>
-                      updateSurface("minContrast", +e.target.value)
+                      updateSurface({ minContrast: +e.target.value })
                     }
                   >
                     <option value={4.5}>4.5:1 · Standard text</option>
@@ -1038,28 +1163,98 @@ export default function App() {
                     ),
                   )}
                 </ol>
-                <details className="details">
+                <details className="details" open>
                   <summary>
-                    Resolved geometry <ChevronDown size={14} />
+                    Why each element is here <ChevronDown size={14} />
                   </summary>
                   <div className="geometry-list">
                     {result.elements.map((e) => (
-                      <div key={e.id}>
-                        <strong>{e.id}</strong>
-                        <code>
-                          {Math.round(e.x)}, {Math.round(e.y)} ·{" "}
-                          {Math.round(e.width)} × {Math.round(e.height)}
-                        </code>
+                      <div key={e.id} className="explain-item">
+                        <div>
+                          <strong>{e.id}</strong>
+                          <span className="role-tag">
+                            {e.role} · priority {e.priority}
+                          </span>
+                          <code>
+                            {Math.round(e.x)}, {Math.round(e.y)} ·{" "}
+                            {Math.round(e.width)} × {Math.round(e.height)}
+                          </code>
+                        </div>
+                        <ul>
+                          {e.explanation.map((line, i) => (
+                            <li key={i}>{line}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                    {result.omitted.map((o) => (
+                      <div key={o.id} className="explain-item omitted">
+                        <div>
+                          <strong>{o.id}</strong>
+                          <span className="role-tag">
+                            {o.role} · priority {o.priority}
+                          </span>
+                          <code>omitted</code>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </details>
+                <div className="kiosk-demo">
+                  <div className="field-label">
+                    Degradation demo <span className="live-badge">BRIEF</span>
+                  </div>
+                  <p className="help-text">
+                    Shrink the retail kiosk's height. Branding (priority 3)
+                    shrinks, then drops, before the headline and CTA are
+                    touched.
+                  </p>
+                  <label className="range-field">
+                    <span>
+                      Kiosk height{" "}
+                      <b>
+                        {surface.id === "kiosk"
+                          ? surface.height
+                          : kioskPreset.height}
+                        px
+                      </b>
+                    </span>
+                    <input
+                      type="range"
+                      min="140"
+                      max={kioskPreset.height}
+                      step="10"
+                      value={
+                        surface.id === "kiosk"
+                          ? surface.height
+                          : kioskPreset.height
+                      }
+                      onChange={(e) =>
+                        setSurface({ ...kioskPreset, height: +e.target.value })
+                      }
+                    />
+                  </label>
+                  {surface.id === "kiosk" && (
+                    <p className="help-text" role="status">
+                      {result.status === "impossible" ||
+                      result.status === "invalid"
+                        ? "Required content no longer fits: reported as impossible."
+                        : result.omitted.length
+                          ? `Dropped: ${result.omitted.map((o) => `${o.id} (priority ${o.priority})`).join(", ")}. Headline and CTA intact.`
+                          : result.status === "adapted"
+                            ? "All elements kept; lower-priority text reduced."
+                            : "All elements at preferred size."}
+                    </p>
+                  )}
+                </div>
                 {surface.note && (
                   <p className="placement-note">
                     {surface.note}{" "}
-                    <a href={surface.source} target="_blank" rel="noreferrer">
-                      Size reference ↗
-                    </a>
+                    {surface.source && (
+                      <a href={surface.source} target="_blank" rel="noreferrer">
+                        Size reference ↗
+                      </a>
+                    )}
                   </p>
                 )}
                 <button
@@ -1164,9 +1359,8 @@ export default function App() {
                       }}
                     >
                       <Preview
-                        creative={item.creative}
                         surface={item.surface}
-                        result={resolve(item.creative, item.surface, measure)}
+                        result={savedResults.get(item.id)!}
                         maxHeight={210}
                       />
                     </button>
@@ -1256,7 +1450,7 @@ export default function App() {
         )}
         <footer className="site-footer">
           <span>
-            <span className="footer-mark">f</span> forma · Create once. Adapt
+            <span className="footer-mark">o</span> omniframe · Create once. Adapt
             with intention.
           </span>
           <a
@@ -1424,10 +1618,17 @@ export default function App() {
               <input
                 type="checkbox"
                 checked={saveCloud}
-                disabled={!user}
+                disabled={!user || cloudSetup !== "ready"}
                 onChange={(e) => setSaveCloud(e.target.checked)}
               />
-              Save to cloud {user ? "" : "(sign in to enable)"}
+              Save to cloud{" "}
+              {!user
+                ? "(sign in to enable)"
+                : cloudSetup === "missing"
+                  ? "(not set up on this deployment)"
+                  : cloudSetup === "unknown"
+                    ? "(checking cloud library…)"
+                    : ""}
             </label>
             {saveError && (
               <p className="notice error" role="alert">
@@ -1441,45 +1642,5 @@ export default function App() {
         </Modal>
       )}
     </>
-  );
-}
-
-function Modal({
-  title,
-  close,
-  children,
-}: {
-  title: string;
-  close: () => void;
-  children: React.ReactNode;
-}) {
-  const titleId = useId();
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-    return () => ref.current?.close();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      aria-labelledby={titleId}
-      onCancel={close}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close();
-      }}
-    >
-      <div className="modal-content">
-        <button
-          className="modal-close icon-button"
-          aria-label="Close dialog"
-          onClick={close}
-        >
-          <X size={20} />
-        </button>
-        <span className="brand-mark">f</span>
-        <h2 id={titleId}>{title}</h2>
-        {children}
-      </div>
-    </dialog>
   );
 }

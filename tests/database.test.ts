@@ -23,12 +23,13 @@ beforeAll(async () => {
     alter table storage.objects enable row level security;
     create function storage.foldername(name text) returns text[] language sql immutable as $$ select string_to_array(name, '/') $$;
     grant usage on schema storage to authenticated;
-    grant select, insert on storage.objects to authenticated;
+    grant select, insert, delete on storage.objects to authenticated;
     insert into auth.users values ('${alice}'), ('${bob}');
   `);
   for (const name of [
     "202609140001_creatives.sql",
     "202609140002_assets.sql",
+    "202609140003_asset_delete.sql",
   ]) {
     const sql = readFileSync(
       new URL(`../supabase/migrations/${name}`, import.meta.url),
@@ -114,5 +115,25 @@ describe.sequential("Postgres ownership policies", () => {
     );
     await asUser(bob);
     expect((await db.query("select * from storage.objects")).rows).toEqual([]);
+  });
+  it("lets only the owner delete a stored image", async () => {
+    await asUser(bob);
+    expect(
+      (
+        await db.query(
+          "delete from storage.objects where id=$1 returning id",
+          [creativeId],
+        )
+      ).rows,
+    ).toEqual([]);
+    await asUser(alice);
+    expect(
+      (
+        await db.query(
+          "delete from storage.objects where id=$1 returning id",
+          [creativeId],
+        )
+      ).rows,
+    ).toHaveLength(1);
   });
 });
