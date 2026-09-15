@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="640" viewBox="0 0 640 640">
+  <!-- Original illustration for the fictional ZESTO example: a noodle bowl seen from above,
+       on a transparent background. Hand-authored vector, no external source, no text. -->
+  <defs>
+    <radialGradient id="broth" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#ffb347"/>
+      <stop offset="0.7" stop-color="#f07c1d"/>
+      <stop offset="1" stop-color="#c85a12"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="50%" cy="40%" r="60%">
+      <stop offset="0" stop-color="#3a2a24"/>
+      <stop offset="1" stop-color="#1c1411"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="330" cy="352" rx="262" ry="252" fill="#000" opacity="0.18"/>
+  <circle cx="320" cy="330" r="262" fill="url(#rim)"/>
+  <circle cx="320" cy="330" r="236" fill="#f3e7d6"/>
+  <circle cx="320" cy="330" r="216" fill="url(#broth)"/>
+  <g fill="none" stroke="#ffe7a8" stroke-width="11" stroke-linecap="round" opacity="0.95">
+    <path d="M168 318c40-44 86 38 128-6s88 40 130-4 70 28 88 10"/>
+    <path d="M160 356c44-40 90 42 132-2s92 40 134-4 64 26 84 12"/>
+    <path d="M178 396c42-38 86 36 128-4s90 38 130-2 52 22 70 10"/>
+    <path d="M210 432c36-30 76 30 114-2s82 32 118 0"/>
+    <path d="M200 280c38-36 80 30 118-4s84 32 120 0 40 16 56 8"/>
+  </g>
+  <g>
+    <ellipse cx="236" cy="232" rx="58" ry="46" fill="#fffaf0" transform="rotate(-24 236 232)"/>
+    <circle cx="240" cy="234" r="24" fill="#f6a91d"/>
+    <ellipse cx="410" cy="420" rx="58" ry="46" fill="#fffaf0" transform="rotate(18 410 420)"/>
+    <circle cx="406" cy="418" r="24" fill="#f6a91d"/>
+  </g>
+  <g fill="#e2361b">
+    <circle cx="392" cy="236" r="16"/><circle cx="430" cy="270" r="13"/><circle cx="214" cy="408" r="14"/>
+  </g>
+  <g fill="#fbe2d8"><circle cx="392" cy="236" r="6"/><circle cx="430" cy="270" r="5"/><circle cx="214" cy="408" r="5"/></g>
+  <g fill="none" stroke="#3f9b3a" stroke-width="7">
+    <circle cx="330" cy="222" r="11"/><circle cx="352" cy="246" r="9"/><circle cx="296" cy="252" r="9"/>
+    <circle cx="300" cy="452" r="10"/><circle cx="330" cy="470" r="8"/><circle cx="470" cy="336" r="10"/>
+    <circle cx="176" cy="300" r="9"/>
+  </g>
+  <g stroke-linecap="round">
+    <line x1="470" y1="96" x2="600" y2="420" stroke="#8a5a36" stroke-width="18"/>
+    <line x1="512" y1="80" x2="624" y2="398" stroke="#a36d43" stroke-width="18"/>
+  </g>
+</svg>

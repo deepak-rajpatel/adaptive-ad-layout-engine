@@ -45,8 +45,25 @@ export interface ResolvedImage extends ResolvedBase {
    * panels. Content may never overlap it except on a solid panel (see geometryErrors).
    */
   layer?: "background";
+  /** Border drawn inside the image edge (never enlarging the box). */
+  border?: { color: string; width: number };
 }
 export type ResolvedElement = ResolvedText | ResolvedImage;
+/**
+ * A decorative background graphic: never content, never counted as an element. Polygons sit
+ * under images and panels; the frame sits over them (in the safe-area margin), under content.
+ */
+export interface ResolvedShape extends Box {
+  kind: "shape";
+  id: string;
+  shape: "polygon" | "frame";
+  /** Polygon vertices in surface pixels; the box is their bounding box. */
+  points?: [number, number][];
+  fill?: string;
+  stroke?: { color: string; width: number };
+  layer: "under" | "over";
+  explanation: string[];
+}
 /** A solid background panel. Text placed on it is contrast-checked against its fill. */
 export interface ResolvedPanel extends Box {
   kind: "panel";
@@ -70,6 +87,8 @@ export interface ResolvedLayout {
   elements: ResolvedElement[];
   /** Solid panels, present only for panel compositions. */
   panels?: ResolvedPanel[];
+  /** Decorative background graphics, present only when requested and placeable. */
+  shapes?: ResolvedShape[];
   omitted: OmittedElement[];
   decisions: string[];
   errors: string[];
@@ -77,13 +96,22 @@ export interface ResolvedLayout {
   contrast: number;
 }
 
+export type Paintable = ResolvedElement | ResolvedPanel | ResolvedShape;
 /**
- * Explicit paint order shared by every renderer: background colour (implicit), background
- * images, panels, then content in element order. Future animation transforms apply to this
- * list after resolution; they never feed back into layout validation.
+ * Explicit paint order shared by every renderer: background colour (implicit), graphics
+ * under images, background images, panels, the frame, then content in element order. Future
+ * animation transforms apply to this list after resolution; they never feed back into
+ * layout validation.
  */
-export function paintOrder(layout: ResolvedLayout): (ResolvedElement | ResolvedPanel)[] {
+export function paintOrder(layout: ResolvedLayout): Paintable[] {
   const back = layout.elements.filter((e) => e.kind === "image" && e.layer === "background");
   const front = layout.elements.filter((e) => !(e.kind === "image" && e.layer === "background"));
-  return [...back, ...(layout.panels ?? []), ...front];
+  const shapes = layout.shapes ?? [];
+  return [
+    ...shapes.filter((s) => s.layer === "under"),
+    ...back,
+    ...(layout.panels ?? []),
+    ...shapes.filter((s) => s.layer === "over"),
+    ...front,
+  ];
 }

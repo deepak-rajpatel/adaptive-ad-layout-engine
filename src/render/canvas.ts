@@ -43,6 +43,21 @@ export async function renderCanvas(
       ctx.fillRect(e.x, e.y, e.width, e.height);
       continue;
     }
+    if (e.kind === "shape") {
+      if (e.shape === "frame") {
+        const w = e.stroke!.width;
+        ctx.strokeStyle = e.stroke!.color;
+        ctx.lineWidth = w;
+        ctx.strokeRect(e.x + w / 2, e.y + w / 2, e.width - w, e.height - w);
+      } else {
+        ctx.fillStyle = e.fill!;
+        ctx.beginPath();
+        (e.points ?? []).forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+        ctx.fill();
+      }
+      continue;
+    }
     if (e.kind === "image") {
       const img = images.get(e.id)!;
       ctx.save();
@@ -55,6 +70,15 @@ export async function renderCanvas(
       } else {
         const c = coverCrop(img.width, img.height, e.width, e.height, e.focalX, e.focalY);
         ctx.drawImage(img, c.x, c.y, c.width, c.height, e.x, e.y, e.width, e.height);
+      }
+      if (e.border) {
+        // Inside the image edge (the clip keeps it there), matching the DOM inset ring.
+        const w = e.border.width;
+        ctx.strokeStyle = e.border.color;
+        ctx.lineWidth = w;
+        ctx.beginPath();
+        ctx.roundRect(e.x + w / 2, e.y + w / 2, e.width - w, e.height - w, Math.max(0, e.radius - w / 2));
+        ctx.stroke();
       }
       ctx.restore();
       continue;

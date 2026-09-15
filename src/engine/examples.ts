@@ -1,4 +1,4 @@
-// Example-ad library: editable starting points, two per goal. Fictional brands.
+// Example-ad library: editable starting points, at least two per goal. Fictional brands.
 // Plain data built on the model's defaults; every example resolves through the same engine
 // as user-created ads, using only existing Appearance fields (no example-specific layout).
 // The original `sample` export is left unchanged for engine fixtures.
@@ -30,6 +30,19 @@ type Look = Pick<CreativeData, "background" | "foreground" | "accent"> &
       | "imageFit"
       | "textStyles"
       | "decoration"
+      | "logo"
+      | "logoAspect"
+      | "badge"
+      | "badgeFill"
+      | "badgeTextColor"
+      | "badgeShape"
+      | "imageMask"
+      | "imageRadius"
+      | "imageBorderWidth"
+      | "imageBorderColor"
+      | "graphic"
+      | "graphicColor"
+      | "imageAspect"
     >
   >;
 
@@ -90,6 +103,39 @@ export const exampleAds: readonly ExampleAd[] = [
         textStyles: { brand: { weight: 600 }, headline: { size: 0.8 }, supporting: { weight: 400 } },
       },
       "/examples/dayform-accessories.jpg",
+    ),
+  },
+  {
+    id: "sales-zesto-noodle-bowl",
+    name: "Noodle bowl delivery",
+    goal: "Sales",
+    // Food promotion: an image logo instead of brand text, a transparent food illustration
+    // over a diagonal orange division, and a circular "30% OFF" badge beside the offer text.
+    creative: example(
+      "Sales",
+      { brand: "", headline: "Hot noodles. Big flavour.", offer: "Family bowls from $19", supporting: "Delivered in 30 minutes", cta: "Order Now" },
+      {
+        background: "#fff1e0",
+        foreground: "#3b1a0b",
+        accent: "#b8430f",
+        buttonRadius: 40,
+        focalX: 50,
+        focalY: 50,
+        composition: "product",
+        imageShare: 55,
+        imageFit: "contain",
+        imageAspect: 1,
+        logo: "/examples/zesto-logo.svg",
+        logoAspect: 3.4,
+        badge: "30% OFF",
+        badgeFill: "#ffd23f",
+        badgeTextColor: "#3b1a0b",
+        badgeShape: "circle",
+        graphic: "diagonal",
+        graphicColor: "#f59e3b",
+        textStyles: { headline: { size: 0.9 }, supporting: { weight: 400 }, badge: { weight: 700 } },
+      },
+      "/examples/zesto-noodle-bowl.svg",
     ),
   },
   {

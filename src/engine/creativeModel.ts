@@ -2,23 +2,44 @@
 import {
   buttonSizes,
   compositionFamilies,
+  graphicKinds,
+  imageMasks,
   validateSpec,
   type AdSpec,
   type ButtonSize,
   type CompositionFamily,
   type ElementSpec,
+  type GraphicKind,
   type HexColor,
   type ImageFit,
+  type ImageMask,
   type Priority,
   type TextStyle,
 } from "./spec";
 import type { Goal } from "./placements";
 
 /** Stable element keys; each maps to one element id in the spec ("offer" keeps the id "price"). */
-export type CreativeKey = "brand" | "headline" | "supporting" | "image" | "offer" | "cta" | "decoration";
+export type CreativeKey =
+  | "brand"
+  | "headline"
+  | "supporting"
+  | "image"
+  | "offer"
+  | "cta"
+  | "decoration"
+  | "logo"
+  | "badge";
 /** Elements that take typography settings. */
-export type TextKey = "brand" | "headline" | "supporting" | "offer" | "cta";
-export const textKeys: readonly TextKey[] = ["brand", "headline", "supporting", "offer", "cta"];
+export type TextKey = "brand" | "headline" | "supporting" | "offer" | "cta" | "badge";
+export const textKeys: readonly TextKey[] = ["brand", "headline", "supporting", "offer", "cta", "badge"];
+/** "auto" keeps the original image corners. */
+export type ImageMaskChoice = "auto" | ImageMask;
+export const imageMaskChoices: readonly ImageMaskChoice[] = ["auto", ...imageMasks];
+export type GraphicChoice = "none" | GraphicKind;
+export const graphicChoices: readonly GraphicChoice[] = ["none", ...graphicKinds];
+const hex6 = (v: unknown) => typeof v === "string" && /^#[\da-f]{6}$/i.test(v);
+const numberIn = (v: unknown, min: number, max: number) =>
+  typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 /** "auto" is the original automatic arrangement; the others are preferred composition families. */
 export type CompositionChoice = "auto" | CompositionFamily;
 export const compositionChoices: readonly CompositionChoice[] = ["auto", ...compositionFamilies];
@@ -94,6 +115,28 @@ export interface CreativeData {
   imageFit: ImageFit;
   /** Typography per text element. Missing entries keep the defaults. */
   textStyles: Partial<Record<TextKey, TextStyle>>;
+  /** Image logo (path or embedded image); "" = none. Brand text, logo, or both. */
+  logo: string;
+  /** The logo's intrinsic width / height, measured on upload. */
+  logoAspect: number;
+  /** Promotional badge label ("30% OFF"); "" = no badge. Separate from the offer text. */
+  badge: string;
+  badgeFill: string;
+  /** Badge label colour; "" = automatic (readable on the fill). */
+  badgeTextColor: string;
+  badgeShape: "pill" | "circle";
+  /** Hero image mask; "auto" keeps the original corners. */
+  imageMask: ImageMaskChoice;
+  /** Corner radius for the rounded mask, px. */
+  imageRadius: number;
+  /** Image border width in px; 0 = no border. */
+  imageBorderWidth: number;
+  imageBorderColor: string;
+  /** Background graphic behind the image region (or a frame in the margin). */
+  graphic: GraphicChoice;
+  graphicColor: string;
+  /** The hero image's measured width / height (0 = unknown). Lets the badge hug a cut-out. */
+  imageAspect: number;
 }
 
 export const defaultRequired: Record<CreativeKey, boolean> = {
@@ -104,7 +147,25 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
   offer: false,
   supporting: false,
   decoration: false,
+  logo: false,
+  badge: false,
 };
+/** Defaults for the brand, image-style, background and badge settings: add nothing to the spec. */
+export const visualDefaults = {
+  logo: "",
+  logoAspect: 1,
+  badge: "",
+  badgeFill: "#ffd23f",
+  badgeTextColor: "",
+  badgeShape: "circle",
+  imageMask: "auto",
+  imageRadius: 24,
+  imageBorderWidth: 0,
+  imageBorderColor: "#ffffff",
+  graphic: "none",
+  graphicColor: "#f59e3b",
+  imageAspect: 0,
+} as const satisfies Partial<CreativeData>;
 
 /**
  * Intent-driven priorities (1 = most important). Used when `useGoalPriorities` is on.
@@ -113,10 +174,11 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
  */
 export const goalPriorities: Record<Goal, Record<CreativeKey, Priority>> = {
   // Supporting copy sits mid-ladder; decoration is always the first thing to yield.
-  Awareness: { brand: 1, image: 1, headline: 2, cta: 3, supporting: 3, offer: 4, decoration: 5 },
-  Consideration: { headline: 1, image: 2, cta: 2, offer: 3, supporting: 3, brand: 4, decoration: 5 },
-  Leads: { headline: 1, cta: 1, offer: 2, image: 2, brand: 3, supporting: 3, decoration: 5 },
-  Sales: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3, supporting: 3, decoration: 5 },
+  // The logo ranks with brand text; the badge ranks with the offer it promotes.
+  Awareness: { brand: 1, logo: 1, image: 1, headline: 2, cta: 3, supporting: 3, offer: 4, badge: 4, decoration: 5 },
+  Consideration: { headline: 1, image: 2, cta: 2, offer: 3, badge: 3, supporting: 3, brand: 4, logo: 4, decoration: 5 },
+  Leads: { headline: 1, cta: 1, offer: 2, badge: 2, image: 2, brand: 3, logo: 3, supporting: 3, decoration: 5 },
+  Sales: { headline: 1, image: 1, cta: 2, offer: 2, badge: 2, brand: 3, logo: 3, supporting: 3, decoration: 5 },
 };
 
 /** CTA labels offered in the editor (Taboola's list; "None" is left out because the CTA is required). */
@@ -175,7 +237,7 @@ export const sample: CreativeData = {
   buttonRadius: 8,
   focalX: 50,
   focalY: 50,
-  priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3, supporting: 3, decoration: 5 },
+  priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3, supporting: 3, decoration: 5, logo: 3, badge: 2 },
   required: defaultRequired,
   goal: "Sales",
   useGoalPriorities: true,
@@ -194,6 +256,7 @@ export const sample: CreativeData = {
   spacing: "normal",
   imageFit: "cover",
   textStyles: {},
+  ...visualDefaults,
 };
 
 // The offer keeps the element id "price" so resolved layouts, explanations and renderer
@@ -210,18 +273,30 @@ export function toSpec(c: CreativeData): AdSpec {
     const st = c.textStyles?.[key];
     if (!st || typeof st !== "object") return {};
     // Buttons take font, weight and size; their colours and centring come from Appearance.
-    const picked: TextStyle = key === "cta" ? { font: st.font, weight: st.weight, size: st.size } : { ...st };
+    // The badge's label colour has its own control, so only its font, weight and size come from here.
+    const picked: TextStyle =
+      key === "cta" || key === "badge" ? { font: st.font, weight: st.weight, size: st.size } : { ...st };
     const style = Object.fromEntries(Object.entries(picked).filter(([, v]) => v !== undefined)) as TextStyle;
     return Object.keys(style).length ? { style } : {};
   };
   const elements: ElementSpec[] = [];
   if (keep("headline")) elements.push({ id: "headline", type: "text", role: "primary", priority: p.headline, ...req("headline"), content: c.headline, ...styleFor("headline") });
-  if (keep("image")) elements.push({ id: "image", type: "image", role: "hero", priority: p.image, ...req("image"), content: c.image, ...(c.imageFit === "contain" ? { fit: "contain" as const } : {}) });
+  if (keep("image")) elements.push({ id: "image", type: "image", role: "hero", priority: p.image, ...req("image"), content: c.image, ...(c.imageFit === "contain" ? { fit: "contain" as const } : {}), ...(c.imageAspect ? { aspect: c.imageAspect } : {}) });
   if (keep("cta")) elements.push({ id: "cta", type: "button", role: "action", priority: p.cta, ...req("cta"), content: c.cta, ...styleFor("cta") });
   if (keep("brand")) elements.push({ id: "brand", type: "text", role: "branding", priority: p.brand, ...req("brand"), content: c.brand, ...styleFor("brand") });
   if (keep("offer")) elements.push({ id: "price", type: "text", role: "secondary", priority: p.offer, ...req("offer"), truncate: true, content: c.offer, ...styleFor("offer") });
   if (keep("supporting")) elements.push({ id: "supporting", type: "text", role: "supporting", priority: p.supporting ?? 3, ...req("supporting"), content: c.supporting, ...styleFor("supporting") });
   if (keep("decoration")) elements.push({ id: "decoration", type: "image", role: "decoration", priority: p.decoration ?? 5, ...req("decoration"), content: c.decoration });
+  if (keep("logo")) elements.push({ id: "logo", type: "image", role: "logo", priority: p.logo ?? 3, ...req("logo"), content: c.logo, aspect: c.logoAspect });
+  if (keep("badge")) {
+    const badgeStyle = styleFor("badge").style ?? {};
+    const style: TextStyle = { ...badgeStyle, ...(c.badgeTextColor ? { color: c.badgeTextColor as HexColor } : {}) };
+    elements.push({ id: "badge", type: "text", role: "badge", priority: p.badge ?? 2, ...req("badge"), content: c.badge, ...(Object.keys(style).length ? { style } : {}) });
+  }
+  const imageStyle = {
+    ...(c.imageMask && c.imageMask !== "auto" ? { mask: c.imageMask, ...(c.imageMask === "rounded" ? { radius: c.imageRadius } : {}) } : {}),
+    ...(c.imageBorderWidth > 0 ? { border: { color: c.imageBorderColor as HexColor, width: c.imageBorderWidth } } : {}),
+  };
   return {
     elements,
     theme: {
@@ -242,10 +317,13 @@ export function toSpec(c: CreativeData): AdSpec {
         }
       : {}),
     ...(c.spacing && c.spacing !== "normal" ? { spacing: spacingScale[c.spacing] } : {}),
+    ...(Object.keys(imageStyle).length ? { imageStyle } : {}),
+    ...(c.graphic && c.graphic !== "none" ? { graphic: { kind: c.graphic, color: c.graphicColor as HexColor } } : {}),
+    ...(keep("badge") ? { badge: { fill: c.badgeFill as HexColor, shape: c.badgeShape } } : {}),
   };
 }
 
-const keys: readonly CreativeKey[] = ["brand", "headline", "supporting", "image", "offer", "cta", "decoration"];
+const keys: readonly CreativeKey[] = ["brand", "headline", "supporting", "image", "offer", "cta", "decoration", "logo", "badge"];
 const inRange = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
 
 export function validateCreative(value: unknown): string[] {
@@ -289,6 +367,20 @@ export function validateCreative(value: unknown): string[] {
     !Object.entries(c.textStyles).every(([k, v]) => textKeys.includes(k as TextKey) && !!v && typeof v === "object")
   )
     errors.push("Text styles must be settings keyed by text element.");
+  if (typeof c.logo !== "string") errors.push("Logo must be an image path or empty.");
+  if (!numberIn(c.logoAspect, 0.1, 10)) errors.push("Logo proportions must be a width/height ratio of 0.1–10.");
+  if (typeof c.badge !== "string" || c.badge.length > 24) errors.push("Badge text must be at most 24 characters.");
+  if (!hex6(c.badgeFill)) errors.push("Badge fill must be a six-digit hex color.");
+  if (c.badgeTextColor !== "" && !hex6(c.badgeTextColor)) errors.push("Badge text color must be automatic or a six-digit hex color.");
+  if (c.badgeShape !== "pill" && c.badgeShape !== "circle") errors.push("Badge shape must be Pill or Circle.");
+  if (!imageMaskChoices.includes(c.imageMask)) errors.push("Unknown image mask.");
+  if (!numberIn(c.imageRadius, 0, 200)) errors.push("Image corner radius must be 0–200 px.");
+  if (!numberIn(c.imageBorderWidth, 0, 24)) errors.push("Image border must be 0–24 px.");
+  if (!hex6(c.imageBorderColor)) errors.push("Image border color must be a six-digit hex color.");
+  if (!graphicChoices.includes(c.graphic)) errors.push("Unknown background graphic.");
+  if (!hex6(c.graphicColor)) errors.push("Background graphic color must be a six-digit hex color.");
+  if (!(c.imageAspect === 0 || numberIn(c.imageAspect, 0.1, 10)))
+    errors.push("Image proportions must be unknown (0) or a width/height ratio of 0.1–10.");
   if (errors.length) return errors;
   return validateSpec(toSpec(c));
 }

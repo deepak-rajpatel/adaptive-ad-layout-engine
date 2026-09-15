@@ -102,6 +102,33 @@ Each family places a fixed set of roles: `product` and `panel` place text and th
 
 Decoration (`role: "decoration"`, priority 5 and optional in the examples) is kept by the typographic family only at preferred text sizes. If no candidate fits, omission follows the declared priorities and required flags, and each omission records its actual reason (for example, "no arrangement available here can place it"). A required element that no available arrangement can place (required decoration with the product or panel family, for instance) makes the result `impossible`, and the error names the element and says which arrangements can place it.
 
+### Composition typography defaults
+
+Composition families apply a small set of reusable design defaults. The automatic arrangements do not, so legacy layouts are unchanged:
+
+- **Headline measure:** a headline may take up to 20% off its style size (steps of 10%) to break into at most three lines without splitting a word. That size becomes its preferred size in that column. It is a design choice, not a degradation step, and is reported in the explanation.
+- **Balanced breaks:** multi-line headlines and supporting lines use the narrowest measure that keeps their line count, so lines have similar lengths.
+- **Line-quality scoring:** within one size plan, variants lose points for headlines over two lines and for a single-word last line.
+- **Hierarchy:** in compositions, supporting copy is set at 0.8 × the base unit, below the offer (1.3) and headline (2.2). Automatic arrangements keep the original 0.95, so existing automatic layouts with a supporting line are unchanged.
+- **Rhythm:** the supporting line sits half a gap under the headline, and the button gets 1.5 gaps above it.
+- **Balance:** product-led side layouts centre the copy against the product.
+- **Truncation is a permission, not an instruction:** wrapped copy is tried first, and an offer is cut to one line only when wrapping cannot fit.
+- **Truncation never hides a price:** for any spec with a composition, in the family and in its automatic fallback alike, truncation that would hide a price, number or currency figure is refused. The ladder continues, and if nothing fits, the offer is omitted explicitly by priority with a reason. Specs without a composition keep the original ladder.
+- **Badge against the product:** the hero's proportions are measured when an image is uploaded (directly or on the Create page), chosen from the image library, or restored, and they are saved with the creative. When the hero is shown whole and its proportions are known, the badge hugs the upper corner of the drawn image rectangle rather than its region's.
+
+### Brand logo, image style, background graphics and badge
+
+These are typed spec features resolved by the same code path on every surface. They are not coordinates and not per-campaign branches.
+
+- **Logo** (`role: "logo"`, an image with `aspect`): laid out in the copy flow ahead of brand text in every arrangement and family. Its height is the base unit × 1.25, scaled by its priority's size plan and never below the surface's minimum text size. Its width follows the aspect ratio, capped at the column width. It has its own priority and required flag and is omitted like any other element. Brand text, the logo, or both may be present.
+- **Image style** (`imageStyle`: mask `rect` | `rounded` | `circle`, radius, border): applied to the hero after each candidate is built. A circle is squared inside the intersection of the image region and the safe area, so it stays a circle on tall, wide and square surfaces (a full-bleed image becomes an in-safe-area image). Borders are drawn inside the edge, so geometry never grows. Masks and borders compose with cover or contain fitting and the focal point.
+- **Offer badge** (`role: "badge"`, text on `badge.fill` with a `pill` or `circle` shape): placed after each candidate at a corner of the image region, then of the safe area. It is sized from its measured label plus padding (a circle circumscribes the label block). It is the one intentional content overlay: `geometryErrors` lets it overlap the hero or decoration, never text, the button or the logo. Its label contrast is checked against its own fill.
+
+  **Coverage limit:** the badge may overlap at most 20% of the image's rendered rectangle. That is the drawn rectangle of a whole-image fit whose proportions are known, otherwise the image box. The measure is geometric, not detection of the visible product silhouette; a transparent cut-out's empty corners count as covered. At each size step (100%, 90%, then 80% of the badge size, never below the minimum text size), every allowed placement is tried: hugging the rendered image's upper corners, then the corners of the image and of the safe area. If none qualifies, the candidate is rejected and the resolver tries other candidates and size plans. After that, an optional badge is omitted by priority with that reason; a required badge makes the result `impossible` rather than exceeding the limit. The badge's explanation states its actual coverage.
+- **Background graphics** (`graphic`: `block` | `diagonal` | `frame`): resolved after the layout, never counted as elements. Block and diagonal are anchored to the image region (inflated by half a gap unless the image already bleeds). The diagonal slants the edge that faces the middle of the surface, so it reshapes between tall, square and wide surfaces. Each is tested against every text element with a separating-axis polygon test, not its bounding box. If one would sit behind text, it is dropped with a reason in the decisions; text is only ever on the background or a solid panel. The frame is a stroke inside the safe-area margin, skipped with a reason when the margin is under 8 px.
+
+Paint order is shared by both renderers: graphics under images, background images, panels, the frame, then content. The DOM draws polygons with `clip-path` and borders with an inset ring; the Canvas fills the same vertices and strokes inside the same edge.
+
 Text and buttons may carry a `style` (font from the curated set, weight 400/600/700, a 0.6–1.6× preferred-size multiplier, alignment, colour). The multiplier changes the preferred size only; the minimum text size and the ladder still apply. `spacing` scales the gap between elements.
 
 ### Choosing and omitting
@@ -123,11 +150,12 @@ Every resolved element carries its slot ("Right text column, vertically centred 
 
 ### Cost
 
-Search is bounded by the active element set: each size plan tries up to 10 automatic geometry variants and, when requested, up to 3 composition shares. Each failed omission pass removes one optional element, so there are at most the optional-element count plus one passes. The number of size plans depends on the text priorities and truncatable content. There is no recursion or unbounded search. `npm run benchmark` measures automatic examples with a deterministic width stub; it is not a browser or all-composition benchmark.
+Search is bounded by the active element set: each size plan tries up to 10 automatic geometry variants and, when requested, up to 3 composition shares per orientation (up to 2 orientations at intermediate aspect ratios). Each candidate can also try 3 badge sizes and a bounded set of placements. Each failed omission pass removes one optional element, so there are at most the optional-element count plus one passes. The number of size plans depends on the text priorities and truncatable content. There is no recursion or unbounded search. `npm run benchmark` measures automatic examples with a deterministic width stub; it is not a browser or all-composition benchmark.
 
 ## Correctness guarantees
 
-- Valid output (`ready` / `adapted`) passes `geometryErrors`: content stays inside the safe area without unintended overlap, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces. Explicit background layers and panels may extend to canvas edges; content over background imagery requires a solid backing panel.
+- Valid output (`ready` / `adapted`) passes `geometryErrors`: content stays inside the safe area without unintended overlap, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces. Explicit background layers and panels may extend to canvas edges; ordinary copy over background imagery requires a solid backing panel; badges use their own checked fill and overlap rule.
+- Intentional layering is explicit: background images and panels may reach the edges; graphics sit under images or in the margin and never behind text; the badge may overlap only the hero or decoration. Every other overlap is rejected.
 - Valid output is complete: every spec element is either placed exactly once or listed in `omitted` with a reason in `decisions`. Required elements are never omitted. `tests/composition.test.ts` checks this for every composition family with absent, optional and required hero and decoration, on the four required surfaces.
 - `invalid` (bad input) and `impossible` (valid input that cannot fit, cannot be placed, or fails contrast) are distinct and both carry reasons. Neither returns elements.
 - No copy is silently cut: text wraps; only `truncate: true` secondary text may end in an ellipsis, and that is reported in its explanation and the decisions.

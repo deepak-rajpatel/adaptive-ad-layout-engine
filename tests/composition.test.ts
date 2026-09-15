@@ -131,8 +131,8 @@ describe("compatibility", () => {
     const requiredFlags = { headline: true, cta: true, brand: false, image: false, offer: false };
     const { creative } = parseProject({ version: 3, creative: { ...old, priorities, required: requiredFlags }, surface: kiosk });
     expect(creative).toMatchObject({ supporting: "", decoration: "", composition: "auto", imageShare: 50, panelColor: "", spacing: "normal", imageFit: "cover", textStyles: {} });
-    expect(creative.priorities).toEqual({ ...priorities, supporting: 3, decoration: 5 });
-    expect(creative.required).toEqual({ ...requiredFlags, supporting: false, decoration: false });
+    expect(creative.priorities).toEqual({ ...priorities, supporting: 3, decoration: 5, logo: 3, badge: 2 });
+    expect(creative.required).toEqual({ ...requiredFlags, supporting: false, decoration: false, logo: false, badge: false });
     for (const s of required) expect(resolve(toSpec(creative), s, measure)).toEqual(resolve(toSpec(sample), s, measure));
   });
 

@@ -56,9 +56,9 @@ describe("schema 3 migration", () => {
     expect(creative.offer).toBe(long.creative.price);
     expect(creative.offer.length).toBeGreaterThan(40);
     // Original priorities are kept exactly; the two newer elements get their defaults.
-    expect(creative.priorities).toEqual({ headline: 1, image: 2, cta: 1, offer: 3, brand: 5, supporting: 3, decoration: 5 });
+    expect(creative.priorities).toEqual({ headline: 1, image: 2, cta: 1, offer: 3, brand: 5, supporting: 3, decoration: 5, logo: 3, badge: 2 });
     expect(creative).not.toHaveProperty("price");
-    expect(creative.required).toEqual({ headline: true, cta: true, brand: false, image: false, offer: false, supporting: false, decoration: false });
+    expect(creative.required).toEqual({ headline: true, cta: true, brand: false, image: false, offer: false, supporting: false, decoration: false, logo: false, badge: false });
   });
   it("migrates v1 and legacy projects through to schema 3", () => {
     const legacySurface = { id: "portrait", name: "Mobile portrait", width: 360, height: 640, safe: 24, minFont: 14, minTarget: 44, minContrast: 4.5 };
@@ -69,7 +69,7 @@ describe("schema 3 migration", () => {
       creative: { ...v2Creative, priorities: { headline: 100, image: 70, cta: 100, brand: 30, price: 50 } },
       surface: legacySurface,
     });
-    expect(creative.priorities).toEqual({ headline: 1, image: 2, cta: 1, brand: 4, offer: 3, supporting: 3, decoration: 5 });
+    expect(creative.priorities).toEqual({ headline: 1, image: 2, cta: 1, brand: 4, offer: 3, supporting: 3, decoration: 5, logo: 3, badge: 2 });
     expect(creative.offer).toBe("From $129");
     expect(creative.useGoalPriorities).toBe(false);
   });

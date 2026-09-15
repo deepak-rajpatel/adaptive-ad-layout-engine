@@ -11,6 +11,10 @@ export interface RoleTypes {
   supporting: "text";
   /** Optional decorative artwork. Yields before any content and is never cropped. */
   decoration: "image";
+  /** Image logo. Its intrinsic proportions (`aspect`) are always kept. */
+  logo: "image";
+  /** One short promotional badge ("30% OFF") on its own solid fill. */
+  badge: "text";
 }
 export type Role = keyof RoleTypes;
 export type ElementType = RoleTypes[Role];
@@ -51,8 +55,10 @@ interface ElementFor<R extends Role> {
   truncate?: R extends "secondary" ? boolean : never;
   /** Text and button styling. */
   style?: RoleTypes[R] extends "image" ? never : TextStyle;
-  /** Image fit. Omitted: cover for the hero, contain for decoration. */
+  /** Image fit. Omitted: cover for the hero, contain for decoration and logo. */
   fit?: RoleTypes[R] extends "image" ? ImageFit : never;
+  /** Intrinsic width / height of an image (used to keep a logo's proportions), 0.1–10. */
+  aspect?: RoleTypes[R] extends "image" ? number : never;
 }
 /** Discriminated union over roles, so `{ role: "hero", type: "text" }` does not compile. */
 export type ElementSpec = { [R in Role]: ElementFor<R> }[Role];
@@ -92,6 +98,32 @@ export interface Composition {
   /** Solid panel behind the copy (panel family). Omitted: the theme background. */
   panel?: HexColor;
 }
+/** Hero image styling. The border is drawn inside the image edge, so geometry never grows. */
+export type ImageMask = "rect" | "rounded" | "circle";
+export const imageMasks: readonly ImageMask[] = ["rect", "rounded", "circle"];
+export interface ImageStyle {
+  /** Omitted: the original corners (8 px, or square for full-bleed images). */
+  mask?: ImageMask;
+  /** Corner radius for "rounded", 0–200 px; capped at half the shorter side. */
+  radius?: number;
+  border?: { color: HexColor; width: number };
+}
+/**
+ * Decorative background graphic. Block and diagonal are anchored to the image region and sit
+ * behind it; the frame sits in the safe-area margin. Graphics are never content: they are
+ * dropped (with a reason) rather than allowed behind text.
+ */
+export type GraphicKind = "block" | "diagonal" | "frame";
+export const graphicKinds: readonly GraphicKind[] = ["block", "diagonal", "frame"];
+export interface Graphic {
+  kind: GraphicKind;
+  color: HexColor;
+}
+/** Badge fill and shape. The label colour comes from the badge element's style (else automatic). */
+export interface BadgeStyle {
+  fill: HexColor;
+  shape: "pill" | "circle";
+}
 export interface AdSpec<E extends readonly ElementSpec[] = readonly ElementSpec[]> {
   elements: E;
   theme: AdTheme;
@@ -102,6 +134,10 @@ export interface AdSpec<E extends readonly ElementSpec[] = readonly ElementSpec[
   composition?: Composition;
   /** Gap multiplier, 0.6–1.6. Omitted: 1. */
   spacing?: number;
+  imageStyle?: ImageStyle;
+  graphic?: Graphic;
+  /** Required when the spec has a badge element. */
+  badge?: BadgeStyle;
 }
 
 export const roles: readonly Role[] = [
@@ -112,6 +148,8 @@ export const roles: readonly Role[] = [
   "branding",
   "supporting",
   "decoration",
+  "logo",
+  "badge",
 ];
 const typeOf: RoleTypes = {
   primary: "text",
@@ -121,6 +159,8 @@ const typeOf: RoleTypes = {
   branding: "text",
   supporting: "text",
   decoration: "image",
+  logo: "image",
+  badge: "text",
 };
 const hex = (v: unknown) => typeof v === "string" && /^#[\da-f]{6}$/i.test(v);
 const between = (v: unknown, min: number, max: number) =>
@@ -177,6 +217,8 @@ export function validateSpec(value: unknown): string[] {
       errors.push(`${label}: use a local asset, HTTPS image, or embedded PNG, JPEG, or WebP.`);
     if (el.fit !== undefined && (!isImage || !["cover", "contain"].includes(el.fit)))
       errors.push(`${label}: fit must be "cover" or "contain" on an image.`);
+    if (el.aspect !== undefined && (!isImage || !between(el.aspect, 0.1, 10)))
+      errors.push(`${label}: aspect must be an image width/height ratio of 0.1–10.`);
     if (el.style !== undefined) {
       const st = el.style as TextStyle;
       if (isImage || !st || typeof st !== "object") errors.push(`${label}: style applies to text and buttons only.`);
@@ -217,6 +259,22 @@ export function validateSpec(value: unknown): string[] {
   }
   if (spec.spacing !== undefined && !between(spec.spacing, 0.6, 1.6))
     errors.push("Spacing must be 0.6–1.6.");
+  if (spec.imageStyle !== undefined) {
+    const st = spec.imageStyle;
+    if (!st || typeof st !== "object") errors.push("Image style must be an object.");
+    else {
+      if (st.mask !== undefined && !imageMasks.includes(st.mask)) errors.push('Image mask must be "rect", "rounded" or "circle".');
+      if (st.radius !== undefined && !between(st.radius, 0, 200)) errors.push("Image corner radius must be 0–200 px.");
+      if (st.border !== undefined && (!hex(st.border?.color) || !between(st.border?.width, 0, 24)))
+        errors.push("Image border needs a six-digit hex color and a width of 0–24 px.");
+    }
+  }
+  if (spec.graphic !== undefined && (!graphicKinds.includes(spec.graphic?.kind) || !hex(spec.graphic?.color)))
+    errors.push('Background graphic needs a kind ("block", "diagonal" or "frame") and a six-digit hex color.');
+  if (spec.badge !== undefined && (!hex(spec.badge?.fill) || !["pill", "circle"].includes(spec.badge?.shape)))
+    errors.push('Badge style needs a six-digit hex fill and a shape of "pill" or "circle".');
+  if (spec.elements.some((el) => el?.role === "badge") && spec.badge === undefined)
+    errors.push("A badge element needs a badge style (fill and shape).");
   return errors;
 }
 

@@ -17,7 +17,7 @@ Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-
 | Typed spec, surfaces and output; invalid input rejected | `tests/types.test.ts` (compile-time), `validateSpec` / `validateSurface` (runtime) |
 | Spec → resolution → output → rendering separation | `src/engine/*` (no React/DOM, enforced by a test) → `src/render/dom.ts`, `src/render/canvas.ts` |
 | Bonus: unseen 5th surface | Surface menu → *Custom surface* |
-| Bonus: animated transitions | Switch surfaces (respects reduced motion) |
+| Bonus: transition | Surface changes fade in (respects reduced motion); no animated geometry interpolation |
 | Bonus: real text measurement | `src/lib/measure.ts` (Canvas `measureText`) |
 | Bonus: Canvas backend, same resolver | Ad Designer → Live preview → DOM / Canvas |
 | Bonus: accessibility constraints | Tap-target and contrast rules in the resolver and inspector |
@@ -34,7 +34,7 @@ One declarative ad spec, resolved by a TypeScript constraint engine into genuine
 
 ## Current workflow and screenshots
 
-Screenshots captured from the running application on 15 September 2026; these are actual UI captures, not generated mockups. Home shows the first-visit experience; My creatives shows the empty local library. The Ad Designer shows the editable TIDYDAY example. Screenshots show the visible desktop viewport.
+Screenshots refreshed from the current source on 15 September 2026; these are actual UI captures, not generated mockups. Home shows the first-visit experience; My creatives shows the empty local library. The Ad Designer shows the editable ZESTO illustration campaign. Screenshots show the visible desktop viewport.
 
 ![Ad Designer with the shared creative and live preview](docs/screenshots/ad-designer.png)
 
@@ -72,6 +72,10 @@ npm run test:e2e   # production build + Playwright designer, planner and workflo
 With the dev server running, open `http://127.0.0.1:5173/verify.html` to re-run the real-browser layout verification, and `http://127.0.0.1:5173/verify-export.html` to render every planner export and check each PNG's size.
 
 Switch surfaces with the **Surface / placement** menu, the four preview cards, or a URL such as `?surface=broadcast`. The studio works without any Supabase configuration. Scripts call Node entry points directly because Windows command shims break when a parent folder contains `&`.
+
+### Keeping commits focused
+
+Read [AGENTS.md](AGENTS.md) before making changes. After cloning, run `npm run hooks:install` to enable the local path guard (inspect any existing Git hook configuration first). `npm run check:commit` checks staged paths; CI checks all tracked paths. Known scratch, build, archive and local environment files are rejected. Hooks are local and can be bypassed; the guard does not replace reviewing `git diff --cached --name-status`, `git diff --cached --stat` and `git diff --cached`. Curated screenshots in `docs/screenshots/`, runtime assets, useful tests and concise verification summaries are intentional submission files.
 
 ## The spec
 
@@ -131,11 +135,21 @@ Degradation is ordered, not improvised:
 
 Text never goes below the surface's `minTextSize`; the CTA never below `minTapTarget`. Each resolved element carries an `explanation` (slot, size, reduction and why, line count and measured width, truncation, target compliance), shown in the inspector. `decisions` records the chosen arrangement with runner-up scores. See [ARCHITECTURE.md](ARCHITECTURE.md) for the scoring formula and cost.
 
+### Brand, image style, background and offer badge
+
+The Ad Designer's **Brand**, **Image style**, **Background** and **Offer badge** groups add:
+- an image logo that keeps its proportions (brand text, logo, or both);
+- rectangle, rounded or circular image masks with an optional inner border;
+- a solid block, diagonal division or margin frame behind the composition;
+- one promotional badge ("30% OFF") on its own fill, separate from the offer text.
+
+Each feature's settings stay hidden until it is used, and each group has a reset. Logo and badge have their own priority and required flags. When a preference cannot fit a screen, the engine's reason appears inside the group. For example, a graphic that would reach text is left out on that screen, and an optional badge is omitted by priority when no placement at a readable size keeps it off the copy and within 20% overlap of the image's rendered rectangle (a geometric limit, not detection of the product's outline). The ZESTO noodle-bowl example combines logo, transparent illustration, diagonal and badge. Rules: [ARCHITECTURE.md](ARCHITECTURE.md#brand-logo-image-style-background-graphics-and-badge).
+
 ### Editable creative examples
 
-Home includes eight fictional campaigns, with real resolver previews. DAYFORM uses a product-led composition, TIDYDAY a photo and solid copy panel, and OPEN SHELF a typographic composition with a separate book illustration. Brand, headline, supporting line, offer, CTA, image and decoration remain independent elements. The three font choices are installed system stacks; each text element can set weight, preferred size, alignment and colour. See [examples and asset provenance](docs/examples.md).
+Home includes nine fictional campaigns, with real resolver previews. DAYFORM uses a product-led composition, TIDYDAY a photo and solid copy panel, OPEN SHELF a typographic composition with a separate book illustration, and ZESTO a logo, illustrated bowl, diagonal graphic and offer badge. Content remains independently editable. The three font choices are installed system stacks; each text element can set weight, preferred size, alignment and colour. See [examples and asset provenance](docs/examples.md).
 
-The original five roles remain supported; supporting text and decorative imagery extend the model to seven roles, with one element per role. Optional decoration uses priority 5 in the examples. Preferred-family candidates retain decoration only at preferred text sizes; normal priority-based omission and automatic fallback still apply. Old drafts receive defaults for new fields, and the v2 golden-fixture test checks identical legacy layouts.
+The original five roles remain supported; supporting text, decoration, image logo and badge extend the model to nine roles, with one element per role. Optional decoration uses priority 5 in the examples. Preferred-family candidates retain decoration only at their preferred text sizes; normal priority-based omission and automatic fallback still apply. Old drafts receive defaults for new fields, and the v2 golden-fixture test checks legacy layouts. Composition typography and badge fitting have additional documented sizing preferences.
 
 ## TypeScript design
 
@@ -186,11 +200,15 @@ Row-level security limits every creative to `auth.uid() = user_id`; storage poli
 - Unfinished Create-page inputs and pending image processing survive in-app navigation, but not a full reload. Once created, the current creative uses local draft autosaving.
 - Drafts and local versions depend on browser storage; export JSON for a portable backup. Cloud features require the optional Supabase setup and are not required for the assignment demo.
 
-- **One element per role:** primary, secondary, hero, action, branding, supporting and decoration. Branding is a text wordmark; independent image logos, badges, masks and arbitrary graphic layers are not implemented.
+- **One element per role:** primary, secondary, hero, action, branding (text), logo (image), supporting, badge and decoration. There is one badge, one background graphic and one image; masks, borders and graphics apply to the main image only. Arbitrary shapes, multiple badges and free positioning are not supported.
+- **Graphics and badge placement are rule-based:** block and diagonal graphics need an image region and are left out (with a reason) on surfaces where they would reach text. The badge goes at a corner of the image or safe area, never over copy. The frame needs at least an 8 px safe-area margin.
+- **Composition typography is rule-based:** headlines aim for at most three balanced lines, and truncation in compositions may not hide a price. These are defaults of the composition families ([ARCHITECTURE.md](ARCHITECTURE.md#composition-typography-defaults)), not a typesetting engine. Very long copy still shrinks or is omitted by priority.
+- **ZESTO uses an illustration, not food photography:** the photographic direction still needs a suitable food photograph or transparent food cut-out. None was available, generated or downloaded. The image can be replaced in the editor without code changes.
+- **No automatic contrast analysis over photographs:** text never sits on images or graphics; badge and button labels are checked against their own fills.
 - **Automatic sample arrangements:** landscape and kiosk share gallery; portrait uses stack and broadcast uses strip. The three optional composition families offer additional visual directions and aspect-ratio reflow.
 - **Bounded search:** four automatic arrangements and three optional composition families. A general solver could find layouts this one reports as impossible. Score weights are hand-tuned, not learned. Composition preference may select reduced text before trying automatic fallback.
 - **Preferred sizes follow the safe box.** On very shallow surfaces (below about 400 px of safe height) preferred sizes fall with height, so while dragging the kiosk demo the status can return to "ready" at some heights after being "adapted" at taller ones. Every result is still valid and explained.
-- No text is placed over the product photo, so contrast-aware placement over images is not needed or modeled. Contrast covers solid text/background and button text only; this is not a full WCAG audit.
+- Contrast covers ordinary text on its solid background/panel and button/badge labels on their own fills; this is not a full WCAG audit. A badge may intentionally overlap imagery within the coverage rule.
 - Social safe zones are approximate; confirm each platform's current guidance. IAB and social presets check canvas geometry only, not file weight, animation, or ad-network policy.
 - Earlier automatic-mode benchmarks measured about 1–2 ms per surface with a stub measurer; these are not measurements of the new composition families or browser rendering.
 - Browser verification ran on Chromium-based Edge only.
@@ -211,7 +229,7 @@ Development, review and revisions took place on **14–15 September 2026**, acro
 AI assistance is disclosed as required by the assignment:
 
 - **Codex:** initial architecture and implementation assistance, code review, documentation, generated design references (kept outside the submission; never loaded by the app), the fictional headphone asset and six example photographs (see [asset provenance](docs/examples.md#image-provenance) and [asset prompts](docs/generated-example-assets.md)). It also reviewed the connected workflow and prepared submission documentation and screenshots.
-- **Claude Code:** engine/brief alignment, placement planner, Ad Designer controls, connected Home/Create/My creatives workflow, persistence and upload fixes, editable composition families, typography, the book SVG illustration, and automated checks.
+- **Claude Code:** engine/brief alignment, placement planner, Ad Designer controls, connected workflows, persistence and upload fixes, composition completeness, typography, logo/mask/graphic/badge features, the book and ZESTO SVG artwork, and automated checks.
 - **Author:** selected the design direction, reviewed the UI, requested revisions and is responsible for the submitted implementation and explaining its behaviour.
 
 The repository retains AI co-author credits. The assignment permits AI tools with disclosure and expects the author to explain the final code, demonstrate degradation and add an unseen surface during interview.

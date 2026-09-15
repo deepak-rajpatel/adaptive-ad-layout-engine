@@ -6,6 +6,7 @@ import {
   validateCreative,
   type Creative,
 } from "./creative";
+import { visualDefaults } from "../engine/creativeModel";
 export interface SavedCreative {
   id: string;
   name: string;
@@ -139,6 +140,9 @@ export function upgradeToV3(value: unknown): unknown {
     spacing: "normal",
     imageFit: "cover",
     textStyles: {},
+    // Brand logo, image style, background graphic and badge (also without a bump): the defaults
+    // add nothing to the spec, so saved work keeps its exact appearance.
+    ...visualDefaults,
   };
   if (!("price" in c) || "offer" in c)
     return withNewElements({ ...defaults, useGoalPriorities: true, required: defaultRequired, ...c });
@@ -154,13 +158,17 @@ export function upgradeToV3(value: unknown): unknown {
     useGoalPriorities: false,
   });
 }
-/** Adds priority and required entries for the supporting line and decoration; existing entries win. */
+/** Adds priority and required entries for the newer elements; existing entries win. */
 function withNewElements(c: Record<string, unknown>): Record<string, unknown> {
   const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object";
   return {
     ...c,
-    priorities: isObject(c.priorities) ? { supporting: 3, decoration: 5, ...c.priorities } : c.priorities,
-    required: isObject(c.required) ? { supporting: false, decoration: false, ...c.required } : c.required,
+    priorities: isObject(c.priorities)
+      ? { supporting: 3, decoration: 5, logo: 3, badge: 2, ...c.priorities }
+      : c.priorities,
+    required: isObject(c.required)
+      ? { supporting: false, decoration: false, logo: false, badge: false, ...c.required }
+      : c.required,
   };
 }
 

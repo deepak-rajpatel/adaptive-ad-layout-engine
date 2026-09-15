@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Goal } from "../engine/placements";
-import type { ExampleAd } from "../engine/examples";
+import { exampleAds, type ExampleAd } from "../engine/examples";
+
+const countWords = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+/** Derived from the library, so the copy never disagrees with the gallery. */
+const exampleCountLabel = countWords[exampleAds.length] ?? String(exampleAds.length);
 import { ExampleCard, GoalFilters, examplesFor, useExamplePreviews } from "./ExampleCard";
 
 /**
@@ -41,7 +45,7 @@ export function ExampleGallery({ onUse }: { onUse: (example: ExampleAd) => void 
       <div className="gallery-head">
         <div>
           <h2 id="examples-title">Find your next starting point</h2>
-          <p>Eight editable examples. Make one yours.</p>
+          <p>{exampleCountLabel} editable examples. Make one yours.</p>
         </div>
         <GoalFilters goal={goal} onChange={setGoal} label="Filter examples by goal" />
         <div className="gallery-nav">

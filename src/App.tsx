@@ -62,10 +62,15 @@ import {
   ctaOptions,
   effectivePriorities,
   goalOrder,
+  graphicChoices,
+  imageMaskChoices,
   intentCopy,
   spacings,
   textKeys,
+  visualDefaults,
   type CompositionChoice,
+  type GraphicChoice,
+  type ImageMaskChoice,
   type TextKey,
 } from "./engine/creativeModel";
 import { validDestination, type Goal } from "./engine/placements";
@@ -162,12 +167,14 @@ const setupMissing = (code?: string) => code === "PGRST205" || code === "42P01";
 const setupMessage =
   "Cloud library is not set up on this deployment yet: its database tables are missing. Local saving works. The project owner must run the Supabase migrations listed in the README.";
 const kioskPreset = surfaces.find((s) => s.id === "kiosk")!;
-const priorityLabels: Record<"brand" | "image" | "offer" | "supporting" | "decoration", string> = {
+const priorityLabels: Record<"brand" | "image" | "offer" | "supporting" | "decoration" | "logo" | "badge", string> = {
   brand: "Branding",
   image: "Product image",
   offer: "Offer",
   supporting: "Supporting line",
   decoration: "Decoration",
+  logo: "Logo",
+  badge: "Offer badge",
 };
 const requiredLabels: Record<CreativeKey, string> = {
   headline: "Headline",
@@ -177,7 +184,39 @@ const requiredLabels: Record<CreativeKey, string> = {
   offer: "Offer",
   supporting: "Supporting line",
   decoration: "Decoration",
+  logo: "Logo",
+  badge: "Offer badge",
 };
+const maskLabels: Record<ImageMaskChoice, string> = {
+  auto: "Default",
+  rect: "Rectangle",
+  rounded: "Rounded",
+  circle: "Circle",
+};
+const graphicLabels: Record<GraphicChoice, string> = {
+  none: "None",
+  block: "Solid block behind the image",
+  diagonal: "Diagonal division behind the image",
+  frame: "Frame in the margin",
+};
+/** Intrinsic width / height of an image, clamped to the model's 0.1–10 range. */
+async function imageAspect(src: string): Promise<number> {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  const ratio = img.naturalWidth / Math.max(1, img.naturalHeight);
+  return Math.min(10, Math.max(0.1, Math.round(ratio * 100) / 100));
+}
+/** The engine's own explanations for one feature, so a fallback is never silent. */
+function LayoutNotes({ lines }: { lines: string[] }) {
+  return lines.length ? (
+    <ul className="layout-notes" aria-label="What the layout engine did">
+      {lines.map((line, i) => (
+        <li key={i}>{line}</li>
+      ))}
+    </ul>
+  ) : null;
+}
 const compositionLabels: Record<CompositionChoice, string> = {
   auto: "Automatic",
   product: "Product-led",
@@ -190,6 +229,7 @@ const textKeyLabels: Record<TextKey, string> = {
   supporting: "Supporting line",
   offer: "Offer",
   cta: "Button",
+  badge: "Offer badge",
 };
 const weightLabels: Record<FontWeight, string> = { 400: "Regular", 600: "Semibold", 700: "Bold" };
 // Sales (the brief's product ad) leads the menu; a saved project's goal is kept as chosen.
@@ -230,6 +270,15 @@ export default function App() {
   const [focused, setFocused] = useState<string | null>(null);
   const lastImage = useRef<string | null>(null);
   const decorationRef = useRef<HTMLInputElement>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
+  /**
+   * Measures an image's proportions and records them if it is still the current image. The
+   * value is part of the creative, so it survives drafts, saved versions and JSON export.
+   */
+  const measureImage = (src: string) =>
+    void imageAspect(src)
+      .then((aspect) => setCreative((c) => (c.image === src ? { ...c, imageAspect: aspect } : c)))
+      .catch(() => {});
   const [styleTarget, setStyleTarget] = useState<TextKey>("headline");
   const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
@@ -716,6 +765,8 @@ export default function App() {
       ad.name || "Untitled creative",
     );
     if (created) setCreateForm(emptyCreateForm);
+    // Create-page uploads get their proportions measured like direct uploads.
+    if (created && ad.image) measureImage(ad.image);
   }
   /**
    * Opens an independent copy of an example on the retail kiosk, after the shared draft
@@ -1186,14 +1237,18 @@ export default function App() {
                           <button
                             onClick={() => {
                               lastImage.current = creative.image;
-                              update("image", "");
+                              setCreative((c) => ({ ...c, image: "", imageAspect: 0 }));
                             }}
                           >
                             <Trash2 size={14} /> Remove image
                           </button>
                         ) : lastImage.current ? (
                           <button
-                            onClick={() => update("image", lastImage.current!)}
+                            onClick={() => {
+                              const src = lastImage.current!;
+                              setCreative((c) => ({ ...c, image: src, imageAspect: 0 }));
+                              measureImage(src);
+                            }}
                           >
                             <RotateCcw size={14} /> Undo remove image
                           </button>
@@ -1216,7 +1271,11 @@ export default function App() {
                   onChange={async (e) => {
                     try {
                       const file = e.target.files?.[0];
-                      if (file) update("image", await imageData(file));
+                      if (file) {
+                        const src = await imageData(file);
+                        const aspect = await imageAspect(src);
+                        setCreative((c) => ({ ...c, image: src, imageAspect: aspect }));
+                      }
                     } catch (err) {
                       setMessage(errorText(err));
                     }
@@ -1411,6 +1470,355 @@ export default function App() {
                       apply, so they may adapt. Decoration appears in the
                       Typographic composition and is the first thing left out when
                       space is short.
+                    </p>
+                  </div>
+                </details>
+                <details className="accordion">
+                  <summary>
+                    <span>Brand</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <p className="help-text">
+                      Use brand text (in the fields above), an image logo, or both. The
+                      logo keeps its proportions; its height follows each screen's base
+                      size and priority, never below the minimum text size.
+                    </p>
+                    <div className="field">
+                      <span>
+                        <span>
+                          Logo
+                          {!creative.required.logo && <em> (optional)</em>}
+                        </span>
+                      </span>
+                      <div className="image-row">
+                        {creative.logo ? (
+                          <img
+                            className="image-thumb contain logo"
+                            src={creative.logo}
+                            alt="Current logo"
+                          />
+                        ) : (
+                          <div className="image-thumb empty" aria-hidden="true">
+                            <ImagePlus size={20} />
+                          </div>
+                        )}
+                        <button
+                          className="button small"
+                          onClick={() => logoRef.current?.click()}
+                        >
+                          <Upload size={14} /> {creative.logo ? "Replace logo" : "Upload logo"}
+                        </button>
+                        {creative.logo && (
+                          <button
+                            className="button small"
+                            onClick={() =>
+                              setCreative((c) => ({ ...c, logo: "", logoAspect: visualDefaults.logoAspect }))
+                            }
+                          >
+                            <Trash2 size={14} /> Remove logo
+                          </button>
+                        )}
+                      </div>
+                      {creative.required.logo && !creative.logo && (
+                        <small className="field-error" role="alert">
+                          A logo is required. Upload one or untick it under More options.
+                        </small>
+                      )}
+                    </div>
+                    <input
+                      ref={logoRef}
+                      hidden
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Upload logo"
+                      onChange={async (e) => {
+                        try {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const src = await imageData(file);
+                            const aspect = await imageAspect(src);
+                            setCreative((c) => ({ ...c, logo: src, logoAspect: aspect }));
+                          }
+                        } catch (err) {
+                          setMessage(errorText(err));
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    {creative.logo && (
+                      <LayoutNotes
+                        lines={[...result.errors, ...result.decisions].filter((d) => /\blogo\b/.test(d))}
+                      />
+                    )}
+                  </div>
+                </details>
+                {creative.image && (
+                  <details className="accordion">
+                    <summary>
+                      <span>Image style</span>
+                      <ChevronDown size={16} className="chev" />
+                    </summary>
+                    <div className="accordion-body">
+                      <div className="field">
+                        <span id="mask-label">Shape</span>
+                        <div
+                          className="segmented size-presets"
+                          role="group"
+                          aria-labelledby="mask-label"
+                        >
+                          {imageMaskChoices.map((m) => (
+                            <button
+                              key={m}
+                              aria-pressed={creative.imageMask === m}
+                              className={creative.imageMask === m ? "selected" : ""}
+                              onClick={() => update("imageMask", m)}
+                            >
+                              {maskLabels[m]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      {creative.imageMask === "rounded" && (
+                        <label className="range-field">
+                          <span>
+                            Corner radius <b>{creative.imageRadius} px</b>
+                          </span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="120"
+                            value={creative.imageRadius}
+                            onChange={(e) => update("imageRadius", +e.target.value)}
+                          />
+                        </label>
+                      )}
+                      <label className="auto-toggle">
+                        <input
+                          type="checkbox"
+                          checked={creative.imageBorderWidth > 0}
+                          onChange={(e) => update("imageBorderWidth", e.target.checked ? 6 : 0)}
+                        />
+                        Border
+                      </label>
+                      {creative.imageBorderWidth > 0 && (
+                        <>
+                          <label className="color-row">
+                            <span>Border color</span>
+                            <code>{creative.imageBorderColor}</code>
+                            <input
+                              type="color"
+                              aria-label="Image border color"
+                              value={creative.imageBorderColor}
+                              onChange={(e) => update("imageBorderColor", e.target.value)}
+                            />
+                          </label>
+                          <label className="range-field">
+                            <span>
+                              Border width <b>{creative.imageBorderWidth} px</b>
+                            </span>
+                            <input
+                              type="range"
+                              min="1"
+                              max="24"
+                              value={creative.imageBorderWidth}
+                              onChange={(e) => update("imageBorderWidth", +e.target.value)}
+                            />
+                          </label>
+                        </>
+                      )}
+                      <p className="help-text">
+                        A circle stays a circle on every screen: the image is kept square
+                        inside the safe area. Borders are drawn inside the image edge.
+                        For a transparent product cut-out, choose Fit whole image under
+                        Layout so it sits on the ad background.
+                      </p>
+                      <button
+                        className="text-link"
+                        onClick={() =>
+                          setCreative((c) => ({
+                            ...c,
+                            imageMask: visualDefaults.imageMask,
+                            imageRadius: visualDefaults.imageRadius,
+                            imageBorderWidth: visualDefaults.imageBorderWidth,
+                            imageBorderColor: visualDefaults.imageBorderColor,
+                          }))
+                        }
+                      >
+                        <RotateCcw size={13} /> Reset image style
+                      </button>
+                    </div>
+                  </details>
+                )}
+                <details className="accordion">
+                  <summary>
+                    <span>Background</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <div className="field">
+                      <span id="graphic-label">Graphic</span>
+                      <select
+                        aria-labelledby="graphic-label"
+                        value={creative.graphic}
+                        onChange={(e) => update("graphic", e.target.value as GraphicChoice)}
+                      >
+                        {graphicChoices.map((g) => (
+                          <option key={g} value={g}>
+                            {graphicLabels[g]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {creative.graphic !== "none" && (
+                      <>
+                        <label className="color-row">
+                          <span>Graphic color</span>
+                          <code>{creative.graphicColor}</code>
+                          <input
+                            type="color"
+                            aria-label="Background graphic color"
+                            value={creative.graphicColor}
+                            onChange={(e) => update("graphicColor", e.target.value)}
+                          />
+                        </label>
+                        <LayoutNotes lines={result.decisions.filter((d) => d.startsWith("Background"))} />
+                        <button
+                          className="text-link"
+                          onClick={() =>
+                            setCreative((c) => ({
+                              ...c,
+                              graphic: visualDefaults.graphic,
+                              graphicColor: visualDefaults.graphicColor,
+                            }))
+                          }
+                        >
+                          <RotateCcw size={13} /> Remove graphic
+                        </button>
+                      </>
+                    )}
+                    <p className="help-text">
+                      A block or diagonal sits behind the image region and reshapes with it
+                      on each screen; a frame sits in the margin outside the content.
+                      Graphics are decoration: text never sits on one, so if a graphic
+                      would reach text on a screen it is left out there, with the reason
+                      shown here.
+                    </p>
+                  </div>
+                </details>
+                <details className="accordion">
+                  <summary>
+                    <span>Offer badge</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <label className="field">
+                      <span>
+                        <span>
+                          Badge text
+                          {!creative.required.badge && <em> (optional)</em>}
+                        </span>
+                        <small>{creative.badge.length}/24</small>
+                      </span>
+                      <input
+                        value={creative.badge}
+                        maxLength={24}
+                        placeholder="e.g. 30% OFF"
+                        onChange={(e) => update("badge", e.target.value)}
+                      />
+                    </label>
+                    {creative.badge.trim() && (
+                      <>
+                        <div className="field">
+                          <span id="badge-shape-label">Shape</span>
+                          <div
+                            className="segmented size-presets"
+                            role="group"
+                            aria-labelledby="badge-shape-label"
+                          >
+                            {(["circle", "pill"] as const).map((shape) => (
+                              <button
+                                key={shape}
+                                aria-pressed={creative.badgeShape === shape}
+                                className={creative.badgeShape === shape ? "selected" : ""}
+                                onClick={() => update("badgeShape", shape)}
+                              >
+                                {shape === "circle" ? "Circle" : "Pill"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="color-rows">
+                          <label className="color-row">
+                            <span>Badge fill</span>
+                            <code>{creative.badgeFill}</code>
+                            <input
+                              type="color"
+                              aria-label="Badge fill color"
+                              value={creative.badgeFill}
+                              onChange={(e) => update("badgeFill", e.target.value)}
+                            />
+                          </label>
+                          <div className="color-row">
+                            <span>Badge text</span>
+                            <label className="auto-toggle">
+                              <input
+                                type="checkbox"
+                                checked={!creative.badgeTextColor}
+                                onChange={(e) =>
+                                  update(
+                                    "badgeTextColor",
+                                    e.target.checked ? "" : textOn(creative.badgeFill),
+                                  )
+                                }
+                              />
+                              Auto
+                            </label>
+                            <input
+                              type="color"
+                              aria-label="Badge text color"
+                              value={creative.badgeTextColor || textOn(creative.badgeFill)}
+                              disabled={!creative.badgeTextColor}
+                              onChange={(e) => update("badgeTextColor", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        {(() => {
+                          const ratio = contrast(
+                            creative.badgeFill,
+                            creative.badgeTextColor || textOn(creative.badgeFill),
+                          );
+                          return (
+                            <p className={`contrast-line ${ratio < surface.minContrast ? "failed" : ""}`}>
+                              Badge contrast {ratio.toFixed(2)}:1 (target {surface.minContrast}:1)
+                            </p>
+                          );
+                        })()}
+                        <LayoutNotes
+                          lines={[...result.errors, ...result.decisions].filter((d) => /\b[Bb]adge\b/.test(d))}
+                        />
+                        <button
+                          className="text-link"
+                          onClick={() =>
+                            setCreative((c) => ({
+                              ...c,
+                              badge: visualDefaults.badge,
+                              badgeFill: visualDefaults.badgeFill,
+                              badgeTextColor: visualDefaults.badgeTextColor,
+                              badgeShape: visualDefaults.badgeShape,
+                            }))
+                          }
+                        >
+                          <RotateCcw size={13} /> Remove badge
+                        </button>
+                      </>
+                    )}
+                    <p className="help-text">
+                      A short promotion, separate from the offer text. It is sized to its
+                      measured label and may overlap the image, never text or the button.
+                      When it cannot fit on a screen it is left out by priority, or the
+                      layout is reported as impossible if the badge is required. Its
+                      font, weight and size are under Text style.
                     </p>
                   </div>
                 </details>
@@ -2128,7 +2536,7 @@ export default function App() {
                       {creative.useGoalPriorities &&
                         " Turn off “Set by goal” to edit priorities by hand."}
                     </p>
-                    {(["brand", "image", "offer", "supporting", "decoration"] as const).map((id) => (
+                    {(["brand", "logo", "image", "offer", "badge", "supporting", "decoration"] as const).map((id) => (
                       <label className="range-field" key={id}>
                         <span>
                           {id === "offer"
@@ -2707,7 +3115,8 @@ export default function App() {
             currentImage={creative.image}
             localImages={library.map((item) => item.creative.image)}
             select={(image) => {
-              update("image", image);
+              setCreative((c) => ({ ...c, image, imageAspect: 0 }));
+              measureImage(image);
               setAssetOpen(false);
             }}
           />

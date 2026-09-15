@@ -999,6 +999,24 @@
   }
 }
 
+/* Engine notes shown inside a feature group (fallbacks and omissions). */
+.layout-notes {
+  margin: 8px 0 4px;
+  padding: 8px 10px 8px 26px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.image-thumb.contain.logo {
+  background: #f4f1ea;
+}
+/* Upload, replace and remove buttons wrap instead of overflowing a narrow panel. */
+#panel-edit .image-row {
+  flex-wrap: wrap;
+}
+
 /* Decoration thumbnails show the whole artwork. */
 .image-thumb.contain {
   object-fit: contain;

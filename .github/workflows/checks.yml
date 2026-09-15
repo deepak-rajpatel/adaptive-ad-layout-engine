@@ -15,5 +15,6 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node scripts/check-commit.mjs --all
       - run: npm test
       - run: npm run build

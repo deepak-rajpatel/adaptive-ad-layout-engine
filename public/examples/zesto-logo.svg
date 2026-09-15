@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="340" height="100" viewBox="0 0 340 100">
+  <!-- Original logo for the fictional ZESTO brand: a flame-bowl mark and a stroked wordmark.
+       Hand-authored vector (letters drawn as paths, no font), no external source. -->
+  <circle cx="50" cy="50" r="44" fill="#b8430f"/>
+  <path d="M50 18c10 14 20 22 20 36a20 20 0 0 1-40 0c0-9 5-14 10-20 2 7 5 10 9 11-3-9-2-18 1-27z" fill="#ffd23f"/>
+  <path d="M26 62h48a24 16 0 0 1-48 0z" fill="#fff1e0"/>
+  <g fill="none" stroke="#3b1a0b" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter">
+    <path d="M112 26h36l-36 48h36"/>
+    <path d="M196 26h-30v48h30M166 50h24"/>
+    <path d="M238 30c-6-4-26-6-26 8s28 10 28 24-22 14-30 8"/>
+    <path d="M252 26h36M270 26v48"/>
+    <circle cx="313" cy="50" r="22"/>
+  </g>
+</svg>

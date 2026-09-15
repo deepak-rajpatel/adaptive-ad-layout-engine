@@ -48,6 +48,13 @@ Desktop.ini
 # Local scratch files
 /tmp/
 /temp/
+/scratchpad/
+/scratch/
+/archive/
+/archives/
+/design/
+blob-report/
+.claude/
 
 # Downloaded assignment reference (keep locally)
 /Adaptive Layout Engine for Multi-Surface Ads*.html

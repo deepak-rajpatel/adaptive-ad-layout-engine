@@ -12,10 +12,12 @@ const measure: Measure = (text, size) =>
 const required = surfaces.slice(0, 4);
 
 describe("example ads", () => {
-  it("has two examples per goal with stable, unique ids", () => {
-    expect(exampleAds).toHaveLength(8);
-    expect(new Set(exampleAds.map((e) => e.id)).size).toBe(8);
-    for (const goal of ["Sales", "Leads", "Awareness", "Consideration"] as const)
+  it("has at least two examples per goal with stable, unique ids", () => {
+    expect(exampleAds).toHaveLength(9);
+    expect(new Set(exampleAds.map((e) => e.id)).size).toBe(9);
+    // Sales has a third: the ZESTO food campaign demonstrating logo, badge and background graphic.
+    expect(exampleAds.filter((e) => e.goal === "Sales")).toHaveLength(3);
+    for (const goal of ["Leads", "Awareness", "Consideration"] as const)
       expect(exampleAds.filter((e) => e.goal === goal)).toHaveLength(2);
     for (const e of exampleAds) expect(e.creative.goal).toBe(e.goal);
   });
@@ -38,16 +40,20 @@ describe("example ads", () => {
     }
   });
 
-  it("seven examples use local photos; Open Shelf stays text-only", () => {
+  it("seven examples use local photos, ZESTO a local illustration; Open Shelf has no image", () => {
     const withImage = exampleAds.filter((e) => e.creative.image);
-    expect(withImage).toHaveLength(7);
+    expect(withImage).toHaveLength(8);
     expect(exampleAds.filter((e) => !e.creative.image).map((e) => e.id)).toEqual(["awareness-open-shelf-reading"]);
     expect(exampleAds.find((e) => e.id === "sales-voxora-headphones")!.creative.image).toBe(sample.image);
-    for (const e of withImage) {
-      // Local files only: no hotlinked images.
-      expect(e.creative.image).toMatch(/^\/[\w/-]+\.jpg$/);
-      expect(existsSync(`public${e.creative.image}`)).toBe(true);
-    }
+    const photos = withImage.filter((e) => e.id !== "sales-zesto-noodle-bowl");
+    expect(photos).toHaveLength(7);
+    for (const e of photos) expect(e.creative.image).toMatch(/^\/[\w/-]+\.jpg$/);
+    // Every image, logo and decoration is a local file: no hotlinked assets.
+    for (const e of exampleAds)
+      for (const src of [e.creative.image, e.creative.logo, e.creative.decoration].filter(Boolean)) {
+        expect(src).toMatch(/^\/[\w/-]+\.(jpg|svg)$/);
+        expect(existsSync(`public${src}`)).toBe(true);
+      }
   });
 
   it("hands out independent copies and leaves the original sample unchanged", () => {

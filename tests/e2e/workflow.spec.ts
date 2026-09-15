@@ -151,8 +151,8 @@ test.describe("examples", () => {
     const row = gallery.locator(".gallery-row");
     // First visit: examples straight away, no recent section, no modal needed.
     await expect(page.getByRole("heading", { name: "Your recent creatives" })).toHaveCount(0);
-    await expect(row.locator(".example-card")).toHaveCount(8);
-    await expect(row.locator(".example-card .preview-frame")).toHaveCount(8);
+    await expect(row.locator(".example-card")).toHaveCount(9);
+    await expect(row.locator(".example-card .preview-frame")).toHaveCount(9);
     // The hero demonstrates one creative on three real surfaces.
     await expect(page.locator(".hero-demo figcaption")).toHaveText(["320 × 480", "1080 × 1080", "1920 × 250"]);
     await shot(page, "home-gallery-first");
@@ -193,7 +193,7 @@ test.describe("examples", () => {
     await page.getByLabel("Creative name").fill("Still typing");
     await page.getByRole("button", { name: "Try an example" }).click();
     const dialog = page.getByRole("dialog", { name: "Choose an example" });
-    await expect(dialog.locator(".example-card")).toHaveCount(8);
+    await expect(dialog.locator(".example-card")).toHaveCount(9);
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
     await expect(page.getByLabel("Creative name")).toHaveValue("Still typing");
