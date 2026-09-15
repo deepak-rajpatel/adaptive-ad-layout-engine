@@ -1,4 +1,5 @@
 // Example-ad library: valid, editable creatives that resolve on the four required surfaces.
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { resolve } from "../src/engine/resolver";
 import type { Measure } from "../src/engine/text";
@@ -37,8 +38,16 @@ describe("example ads", () => {
     }
   });
 
-  it("only the headphone example uses the headphone image; the rest are text-only", () => {
-    expect(exampleAds.filter((e) => e.creative.image).map((e) => e.id)).toEqual(["sales-voxora-headphones"]);
+  it("seven examples use local photos; Open Shelf stays text-only", () => {
+    const withImage = exampleAds.filter((e) => e.creative.image);
+    expect(withImage).toHaveLength(7);
+    expect(exampleAds.filter((e) => !e.creative.image).map((e) => e.id)).toEqual(["awareness-open-shelf-reading"]);
+    expect(exampleAds.find((e) => e.id === "sales-voxora-headphones")!.creative.image).toBe(sample.image);
+    for (const e of withImage) {
+      // Local files only: no hotlinked images.
+      expect(e.creative.image).toMatch(/^\/[\w/-]+\.jpg$/);
+      expect(existsSync(`public${e.creative.image}`)).toBe(true);
+    }
   });
 
   it("hands out independent copies and leaves the original sample unchanged", () => {

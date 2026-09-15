@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+  <!-- Original decorative artwork for the fictional OPEN SHELF example: an abstract open book.
+       Hand-authored vector, no external source. Contains no text. -->
+  <circle cx="468" cy="150" r="46" fill="#d9a84e"/>
+  <path d="M330 214 l6 22 22 6 -22 6 -6 22 -6 -22 -22 -6 22 -6z" fill="#e8c77c"/>
+  <circle cx="392" cy="236" r="5" fill="#e8c77c"/>
+  <circle cx="276" cy="262" r="4" fill="#e8c77c"/>
+  <circle cx="548" cy="236" r="4" fill="#e8c77c"/>
+  <path d="M20 600 C170 548 300 552 384 590 C470 552 560 548 600 556 L600 600 Z" fill="#2c3b60"/>
+  <path d="M384 574 C300 520 170 520 40 566 C150 500 290 488 384 574 Z" fill="#b98a42"/>
+  <path d="M384 568 C330 470 210 430 70 468 C220 452 320 496 384 568 Z" fill="#efe3c6"/>
+  <path d="M384 566 C340 450 250 360 120 360 C260 392 340 470 384 566 Z" fill="#e3cfa2"/>
+  <path d="M384 566 C356 430 300 330 206 280 C312 330 370 440 384 566 Z" fill="#f4ead3"/>
+  <path d="M384 574 C470 520 560 520 600 530 L600 548 C540 540 460 548 384 574 Z" fill="#b98a42"/>
+  <path d="M384 568 C440 470 520 430 600 432 L600 452 C520 458 440 500 384 568 Z" fill="#efe3c6"/>
+  <path d="M384 566 C420 440 490 350 600 324 L600 350 C500 380 420 460 384 566 Z" fill="#c9974a"/>
+  <path d="M384 566 C400 420 460 300 556 240 C480 310 420 430 384 566 Z" fill="#f4ead3"/>
+</svg>

@@ -5,28 +5,44 @@ Eight editable examples, two per goal, defined in `src/engine/examples.ts`. Bran
 | Goal | Example (id) | Image |
 | --- | --- | --- |
 | Sales | Voxora headphones (`sales-voxora-headphones`) | `public/headphones.jpg` (existing project asset) |
-| Sales | Everyday essentials sale (`sales-dayform-essentials`) | Missing: text-only for now |
-| Leads | Home-cleaning quote (`leads-tidyday-quote`) | Missing: text-only for now |
-| Leads | Fitness consultation (`leads-movewell-consultation`) | Missing: text-only for now |
-| Awareness | Coffee brand introduction (`awareness-morning-fold-coffee`) | Missing: text-only for now |
-| Awareness | Community reading initiative (`awareness-open-shelf-reading`) | None, by design (text-only) |
-| Traffic | Weekend travel guide (`traffic-weekend-notes-guide`) | Missing: text-only for now |
-| Traffic | Workspace article (`traffic-small-space-workspace`) | Missing: text-only for now |
+| Sales | Everyday essentials sale (`sales-dayform-essentials`) | `public/examples/dayform-accessories.jpg` |
+| Leads | Home-cleaning quote (`leads-tidyday-quote`) | `public/examples/tidyday-living-room.jpg` |
+| Leads | Fitness consultation (`leads-movewell-consultation`) | `public/examples/movewell-fitness.jpg` |
+| Awareness | Coffee brand introduction (`awareness-morning-fold-coffee`) | `public/examples/morning-fold-coffee.jpg` |
+| Awareness | Community reading initiative (`awareness-open-shelf-reading`) | No photo, by design. Decoration: `public/examples/open-shelf-book.svg` |
+| Traffic | Weekend travel guide (`traffic-weekend-notes-guide`) | `public/examples/weekend-notes-travel.jpg` |
+| Traffic | Workspace article (`traffic-small-space-workspace`) | `public/examples/small-space-desk.jpg` |
+
+## Creative directions
+
+DAYFORM, TIDYDAY and OPEN SHELF follow the approved references in `design/creative-directions-v1/`. Those PNGs are visual references only and are not loaded anywhere. Each example is rebuilt from separate, editable elements through reusable composition families, not example-specific code:
+
+| Example | Composition | Editable elements |
+| --- | --- | --- |
+| DAYFORM | Product-led, 52% product region | Brand, headline, supporting line, offer, button; product photo (replace, fit, focal point) |
+| TIDYDAY | Photo and panel, forest-green panel | Brand, headline, supporting line, offer, button; room photo; panel colour |
+| OPEN SHELF | Typographic, serif headline, decoration | Brand, headline, tagline (offer), button; replaceable book decoration |
+
+CTAs use the curated button list (Shop Now, Get Quote, Learn More) rather than the references' custom labels. The layouts reflow on the four required surfaces; see ARCHITECTURE.md.
 
 ## Image provenance
 
 - `public/headphones.jpg`: the project's existing product image, used only for Voxora.
-- No other images have been added. The session that built this library had no image-generation capability, and the brief rules out hotlinking, stock downloads and image APIs.
+- The six JPEG files in `public/examples/` are original AI-generated images, created on 15 September 2026 with Codex's built-in OpenAI image-generation tool for these fictional campaigns. They are not stock photos and do not show verified real places, products or venues. No third-party licence is claimed; use is subject to the applicable OpenAI terms. The exact generation prompts are in [generated-example-assets.md](generated-example-assets.md).
+- Each is a photograph only, with no headlines, logos, prices or buttons. All ad text stays as separate, editable elements.
+- `public/examples/open-shelf-book.svg`: an original abstract open-book illustration, hand-authored as vector code for this project (15 September 2026). It has no external source and contains no text. It is decoration: replaceable, never cropped, and the first element omitted when space is short.
+- Superseded Home/UI mockups and implementation handoff notes are archived locally outside the submission. No example photographs were cropped from a UI mockup.
+- The Home hero demonstration uses the Voxora example (and so `public/headphones.jpg`), resolved live on the portrait, kiosk and broadcast surfaces.
 
-## Images still needed
+## Crop settings
 
-Place original images under `public/examples/` (JPEG or WebP; no baked-in text, prices, logos or buttons; subject centred so it crops to portrait, landscape, square and very wide strips), then set `image` (and `focalX` / `focalY` if needed) on the example:
+Focal points (`focalX`, `focalY`, in percent) were chosen by checking the resolved image regions on all four required surfaces. The engine cover-crops each image into its own region; very wide regions cannot show every object, so the main subject is kept.
 
-- Everyday essentials: a coordinated arrangement of everyday accessories or home goods.
-- Home cleaning: a bright, tidy living room.
-- Fitness consultation: a welcoming fitness setting or exercise equipment.
-- Coffee introduction: coffee packaging and a cup, warm lighting.
-- Weekend travel: an inviting landscape or destination scene.
-- Workspace article: a carefully arranged desk in a small workspace.
-
-Record each image's source and licence here when added.
+| Example | Focal point | Kept in view |
+| --- | --- | --- |
+| DAYFORM | 50, 55 | Tote and bottle |
+| TIDYDAY | 52, 60 | Sofa and coffee table |
+| MOVEWELL | 50, 62 | Dumbbells, mat and bottle |
+| MORNING FOLD | 56, 58 | Coffee bag and cup |
+| WEEKEND NOTES | 50, 53 | Lakeside cabin |
+| SMALL SPACE | 50, 45 | Desktop and lamp |

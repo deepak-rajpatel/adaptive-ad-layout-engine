@@ -1,16 +1,30 @@
 // The editor's content model (plain data) and its conversion into a declarative AdSpec.
 import {
   buttonSizes,
+  compositionFamilies,
   validateSpec,
   type AdSpec,
   type ButtonSize,
+  type CompositionFamily,
   type ElementSpec,
   type HexColor,
+  type ImageFit,
   type Priority,
+  type TextStyle,
 } from "./spec";
 import type { Goal } from "./placements";
 
-export type CreativeKey = "brand" | "headline" | "image" | "offer" | "cta";
+/** Stable element keys; each maps to one element id in the spec ("offer" keeps the id "price"). */
+export type CreativeKey = "brand" | "headline" | "supporting" | "image" | "offer" | "cta" | "decoration";
+/** Elements that take typography settings. */
+export type TextKey = "brand" | "headline" | "supporting" | "offer" | "cta";
+export const textKeys: readonly TextKey[] = ["brand", "headline", "supporting", "offer", "cta"];
+/** "auto" is the original automatic arrangement; the others are preferred composition families. */
+export type CompositionChoice = "auto" | CompositionFamily;
+export const compositionChoices: readonly CompositionChoice[] = ["auto", ...compositionFamilies];
+export type Spacing = "compact" | "normal" | "airy";
+export const spacings: readonly Spacing[] = ["compact", "normal", "airy"];
+export const spacingScale: Record<Spacing, number> = { compact: 0.75, normal: 1, airy: 1.3 };
 export type CampaignType =
   | "Product"
   | "Service"
@@ -65,6 +79,21 @@ export interface CreativeData {
   description: string;
   /** Per-placement focal points, keyed by placement id. */
   focalOverrides: Record<string, { x: number; y: number }>;
+  /** Optional supporting line ("This weekend only"). */
+  supporting: string;
+  /** Optional decorative artwork (image path); replaceable, never cropped. */
+  decoration: string;
+  /** Preferred composition; "auto" keeps the original automatic arrangements. */
+  composition: CompositionChoice;
+  /** Preferred image (or decoration) prominence in percent, 25–70. */
+  imageShare: number;
+  /** Panel colour for the photo-and-panel composition; "" = the background colour. */
+  panelColor: string;
+  spacing: Spacing;
+  /** Hero image fit: cover (fill, cropped at the focal point) or contain (whole image). */
+  imageFit: ImageFit;
+  /** Typography per text element. Missing entries keep the defaults. */
+  textStyles: Partial<Record<TextKey, TextStyle>>;
 }
 
 export const defaultRequired: Record<CreativeKey, boolean> = {
@@ -73,6 +102,8 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
   brand: false,
   image: false,
   offer: false,
+  supporting: false,
+  decoration: false,
 };
 
 /**
@@ -81,10 +112,11 @@ export const defaultRequired: Record<CreativeKey, boolean> = {
  * Intent only changes data the resolver receives, never geometry.
  */
 export const goalPriorities: Record<Goal, Record<CreativeKey, Priority>> = {
-  Awareness: { brand: 1, image: 1, headline: 2, cta: 3, offer: 4 },
-  Consideration: { headline: 1, image: 2, cta: 2, offer: 3, brand: 4 },
-  Leads: { headline: 1, cta: 1, offer: 2, image: 2, brand: 3 },
-  Sales: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
+  // Supporting copy sits mid-ladder; decoration is always the first thing to yield.
+  Awareness: { brand: 1, image: 1, headline: 2, cta: 3, supporting: 3, offer: 4, decoration: 5 },
+  Consideration: { headline: 1, image: 2, cta: 2, offer: 3, supporting: 3, brand: 4, decoration: 5 },
+  Leads: { headline: 1, cta: 1, offer: 2, image: 2, brand: 3, supporting: 3, decoration: 5 },
+  Sales: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3, supporting: 3, decoration: 5 },
 };
 
 /** CTA labels offered in the editor (Taboola's list; "None" is left out because the CTA is required). */
@@ -143,7 +175,7 @@ export const sample: CreativeData = {
   buttonRadius: 8,
   focalX: 50,
   focalY: 50,
-  priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3 },
+  priorities: { headline: 1, image: 1, cta: 2, offer: 2, brand: 3, supporting: 3, decoration: 5 },
   required: defaultRequired,
   goal: "Sales",
   useGoalPriorities: true,
@@ -153,21 +185,43 @@ export const sample: CreativeData = {
   longHeadline: "",
   description: "",
   focalOverrides: {},
+  // Composition and typography defaults reproduce the original layouts exactly.
+  supporting: "",
+  decoration: "",
+  composition: "auto",
+  imageShare: 50,
+  panelColor: "",
+  spacing: "normal",
+  imageFit: "cover",
+  textStyles: {},
 };
 
 // The offer keeps the element id "price" so resolved layouts, explanations and renderer
 // class names stay identical for projects saved before the rename.
 // Blank optional elements are left out; blank required ones stay in so validation reports them.
+// New elements (supporting, decoration) are appended after the original five so the original
+// declaration order, and therefore the omission order on ties, is unchanged.
+// Default styling, composition and spacing add nothing to the spec, so old layouts are identical.
 export function toSpec(c: CreativeData): AdSpec {
   const p = effectivePriorities(c).priorities;
   const req = (key: CreativeKey) => (c.required[key] ? { required: true } : {});
   const keep = (key: CreativeKey) => c.required[key] || hasContent(c[key]);
+  const styleFor = (key: TextKey) => {
+    const st = c.textStyles?.[key];
+    if (!st || typeof st !== "object") return {};
+    // Buttons take font, weight and size; their colours and centring come from Appearance.
+    const picked: TextStyle = key === "cta" ? { font: st.font, weight: st.weight, size: st.size } : { ...st };
+    const style = Object.fromEntries(Object.entries(picked).filter(([, v]) => v !== undefined)) as TextStyle;
+    return Object.keys(style).length ? { style } : {};
+  };
   const elements: ElementSpec[] = [];
-  if (keep("headline")) elements.push({ id: "headline", type: "text", role: "primary", priority: p.headline, ...req("headline"), content: c.headline });
-  if (keep("image")) elements.push({ id: "image", type: "image", role: "hero", priority: p.image, ...req("image"), content: c.image });
-  if (keep("cta")) elements.push({ id: "cta", type: "button", role: "action", priority: p.cta, ...req("cta"), content: c.cta });
-  if (keep("brand")) elements.push({ id: "brand", type: "text", role: "branding", priority: p.brand, ...req("brand"), content: c.brand });
-  if (keep("offer")) elements.push({ id: "price", type: "text", role: "secondary", priority: p.offer, ...req("offer"), truncate: true, content: c.offer });
+  if (keep("headline")) elements.push({ id: "headline", type: "text", role: "primary", priority: p.headline, ...req("headline"), content: c.headline, ...styleFor("headline") });
+  if (keep("image")) elements.push({ id: "image", type: "image", role: "hero", priority: p.image, ...req("image"), content: c.image, ...(c.imageFit === "contain" ? { fit: "contain" as const } : {}) });
+  if (keep("cta")) elements.push({ id: "cta", type: "button", role: "action", priority: p.cta, ...req("cta"), content: c.cta, ...styleFor("cta") });
+  if (keep("brand")) elements.push({ id: "brand", type: "text", role: "branding", priority: p.brand, ...req("brand"), content: c.brand, ...styleFor("brand") });
+  if (keep("offer")) elements.push({ id: "price", type: "text", role: "secondary", priority: p.offer, ...req("offer"), truncate: true, content: c.offer, ...styleFor("offer") });
+  if (keep("supporting")) elements.push({ id: "supporting", type: "text", role: "supporting", priority: p.supporting ?? 3, ...req("supporting"), content: c.supporting, ...styleFor("supporting") });
+  if (keep("decoration")) elements.push({ id: "decoration", type: "image", role: "decoration", priority: p.decoration ?? 5, ...req("decoration"), content: c.decoration });
   return {
     elements,
     theme: {
@@ -178,10 +232,20 @@ export function toSpec(c: CreativeData): AdSpec {
     },
     button: { size: c.buttonSize, radius: c.buttonRadius },
     focal: { x: c.focalX, y: c.focalY },
+    ...(c.composition && c.composition !== "auto"
+      ? {
+          composition: {
+            family: c.composition,
+            imageShare: c.imageShare / 100,
+            ...(c.panelColor ? { panel: c.panelColor as HexColor } : {}),
+          },
+        }
+      : {}),
+    ...(c.spacing && c.spacing !== "normal" ? { spacing: spacingScale[c.spacing] } : {}),
   };
 }
 
-const keys: readonly CreativeKey[] = ["brand", "headline", "image", "offer", "cta"];
+const keys: readonly CreativeKey[] = ["brand", "headline", "supporting", "image", "offer", "cta", "decoration"];
 const inRange = (v: unknown) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100;
 
 export function validateCreative(value: unknown): string[] {
@@ -208,5 +272,23 @@ export function validateCreative(value: unknown): string[] {
     !Object.values(c.focalOverrides).every((f) => f && inRange(f.x) && inRange(f.y))
   )
     errors.push("Crop focus overrides must be between 0 and 100.");
-  return [...errors, ...validateSpec(toSpec(c))];
+  if (typeof c.supporting !== "string" || c.supporting.length > 160)
+    errors.push("Supporting line must be text of at most 160 characters.");
+  if (typeof c.decoration !== "string") errors.push("Decoration must be an image path or empty.");
+  if (!compositionChoices.includes(c.composition)) errors.push("Unknown composition.");
+  if (typeof c.imageShare !== "number" || !Number.isFinite(c.imageShare) || c.imageShare < 25 || c.imageShare > 70)
+    errors.push("Image prominence must be 25–70%.");
+  if (typeof c.panelColor !== "string" || (c.panelColor !== "" && !/^#[\da-f]{6}$/i.test(c.panelColor)))
+    errors.push("Panel colour must be automatic or a six-digit hex color.");
+  if (!spacings.includes(c.spacing)) errors.push("Spacing must be Compact, Normal or Airy.");
+  if (c.imageFit !== "cover" && c.imageFit !== "contain") errors.push("Image fit must be Fill or Fit.");
+  if (
+    !c.textStyles ||
+    typeof c.textStyles !== "object" ||
+    Array.isArray(c.textStyles) ||
+    !Object.entries(c.textStyles).every(([k, v]) => textKeys.includes(k as TextKey) && !!v && typeof v === "object")
+  )
+    errors.push("Text styles must be settings keyed by text element.");
+  if (errors.length) return errors;
+  return validateSpec(toSpec(c));
 }

@@ -7,6 +7,10 @@ export interface RoleTypes {
   hero: "image";
   action: "button";
   branding: "text";
+  /** A short supporting line ("This weekend only"). */
+  supporting: "text";
+  /** Optional decorative artwork. Yields before any content and is never cropped. */
+  decoration: "image";
 }
 export type Role = keyof RoleTypes;
 export type ElementType = RoleTypes[Role];
@@ -14,17 +18,41 @@ export type ElementType = RoleTypes[Role];
 export type Priority = 1 | 2 | 3 | 4 | 5;
 export type HexColor = `#${string}`;
 
+/** A small curated set of locally installed font stacks (see fonts.ts). */
+export type FontKey = "sans" | "serif" | "humanist";
+export const fontKeys: readonly FontKey[] = ["sans", "serif", "humanist"];
+export type FontWeight = 400 | 600 | 700;
+export const fontWeights: readonly FontWeight[] = [400, 600, 700];
+/**
+ * Typography preferences for one text element. `size` multiplies the resolver's preferred
+ * size; the surface minimum and the degradation ladder still apply. Omitted fields keep the
+ * original defaults (sans, the role's weight, preferred size, left or centred, theme colour).
+ */
+export interface TextStyle {
+  font?: FontKey;
+  weight?: FontWeight;
+  /** 0.6–1.6. */
+  size?: number;
+  align?: "left" | "center";
+  color?: HexColor;
+}
+export type ImageFit = "cover" | "contain";
+
 interface ElementFor<R extends Role> {
   id: string;
   role: R;
   type: RoleTypes[R];
   priority: Priority;
-  /** Text copy, or the image source for `hero`. */
+  /** Text copy, or the image source for image roles. */
   content: string;
   /** Required elements are never omitted; the layout is impossible instead. */
   required?: boolean;
   /** Only secondary text may be truncated with an ellipsis as a degradation step. */
   truncate?: R extends "secondary" ? boolean : never;
+  /** Text and button styling. */
+  style?: RoleTypes[R] extends "image" ? never : TextStyle;
+  /** Image fit. Omitted: cover for the hero, contain for decoration. */
+  fit?: RoleTypes[R] extends "image" ? ImageFit : never;
 }
 /** Discriminated union over roles, so `{ role: "hero", type: "text" }` does not compile. */
 export type ElementSpec = { [R in Role]: ElementFor<R> }[Role];
@@ -48,12 +76,32 @@ export interface ButtonStyle {
   /** Corner radius in px; the resolver caps it at a pill (half the button's shorter side). */
   radius: number;
 }
+/**
+ * Reusable composition families. A family is a preference: the resolver tries it first and
+ * falls back to the automatic arrangements when it cannot satisfy the constraints.
+ * - product: a dominant image region beside or below the copy, bleeding to the edges.
+ * - panel: a full-bleed photo with the copy on a solid panel (contrast checked on the panel).
+ * - type: large typography with optional decoration beside or below the copy.
+ */
+export type CompositionFamily = "product" | "panel" | "type";
+export const compositionFamilies: readonly CompositionFamily[] = ["product", "panel", "type"];
+export interface Composition {
+  family: CompositionFamily;
+  /** Preferred share of the surface given to the image (or decoration), 0.25–0.7. */
+  imageShare: number;
+  /** Solid panel behind the copy (panel family). Omitted: the theme background. */
+  panel?: HexColor;
+}
 export interface AdSpec<E extends readonly ElementSpec[] = readonly ElementSpec[]> {
   elements: E;
   theme: AdTheme;
   button?: ButtonStyle;
   /** Image focal point in percent, used for cover cropping. */
   focal: { x: number; y: number };
+  /** Omitted: automatic arrangement only (the original behaviour). */
+  composition?: Composition;
+  /** Gap multiplier, 0.6–1.6. Omitted: 1. */
+  spacing?: number;
 }
 
 export const roles: readonly Role[] = [
@@ -62,6 +110,8 @@ export const roles: readonly Role[] = [
   "hero",
   "action",
   "branding",
+  "supporting",
+  "decoration",
 ];
 const typeOf: RoleTypes = {
   primary: "text",
@@ -69,7 +119,12 @@ const typeOf: RoleTypes = {
   hero: "image",
   action: "button",
   branding: "text",
+  supporting: "text",
+  decoration: "image",
 };
+const hex = (v: unknown) => typeof v === "string" && /^#[\da-f]{6}$/i.test(v);
+const between = (v: unknown, min: number, max: number) =>
+  typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
 
 export class SpecError extends Error {
   constructor(readonly errors: string[]) {
@@ -111,14 +166,28 @@ export function validateSpec(value: unknown): string[] {
       errors.push(`${label}: priority must be an integer from 1 (highest) to 5.`);
     if (el.truncate !== undefined && el.role !== "secondary")
       errors.push(`${label}: only secondary text can be truncated.`);
-    const limit = el.role === "hero" ? 3_000_000 : 300;
+    const isImage = typeOf[role] === "image";
+    const limit = isImage ? 3_000_000 : 300;
     if (typeof el.content !== "string" || !el.content.trim() || el.content.length > limit)
-      errors.push(`${label}: provide content (maximum ${el.role === "hero" ? "3 MB" : "300 characters"}).`);
+      errors.push(`${label}: provide content (maximum ${isImage ? "3 MB" : "300 characters"}).`);
     else if (
-      el.role === "hero" &&
+      isImage &&
       !/^(\/[^/]|https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(el.content)
     )
       errors.push(`${label}: use a local asset, HTTPS image, or embedded PNG, JPEG, or WebP.`);
+    if (el.fit !== undefined && (!isImage || !["cover", "contain"].includes(el.fit)))
+      errors.push(`${label}: fit must be "cover" or "contain" on an image.`);
+    if (el.style !== undefined) {
+      const st = el.style as TextStyle;
+      if (isImage || !st || typeof st !== "object") errors.push(`${label}: style applies to text and buttons only.`);
+      else {
+        if (st.font !== undefined && !fontKeys.includes(st.font)) errors.push(`${label}: unknown font.`);
+        if (st.weight !== undefined && !fontWeights.includes(st.weight)) errors.push(`${label}: weight must be 400, 600 or 700.`);
+        if (st.size !== undefined && !between(st.size, 0.6, 1.6)) errors.push(`${label}: size must be 0.6–1.6× the preferred size.`);
+        if (st.align !== undefined && !["left", "center"].includes(st.align)) errors.push(`${label}: align must be left or center.`);
+        if (st.color !== undefined && !hex(st.color)) errors.push(`${label}: color must be a six-digit hex color.`);
+      }
+    }
   }
   if (!spec.elements.some((el) => el?.required))
     errors.push("At least one element must be required.");
@@ -139,6 +208,15 @@ export function validateSpec(value: unknown): string[] {
     if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 100)
       errors.push(`Focal ${key} must be between 0 and 100.`);
   }
+  if (spec.composition !== undefined) {
+    const c = spec.composition;
+    if (!c || !compositionFamilies.includes(c.family))
+      errors.push('Composition family must be "product", "panel" or "type".');
+    if (!between(c?.imageShare, 0.25, 0.7)) errors.push("Composition image share must be 0.25–0.7.");
+    if (c?.panel !== undefined && !hex(c.panel)) errors.push("Panel color must be a six-digit hex color.");
+  }
+  if (spec.spacing !== undefined && !between(spec.spacing, 0.6, 1.6))
+    errors.push("Spacing must be 0.6–1.6.");
   return errors;
 }
 

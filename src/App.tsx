@@ -46,13 +46,27 @@ import {
   type Creative,
   type CreativeKey,
 } from "./lib/creative";
-import { buttonSizes } from "./engine/spec";
+import {
+  buttonSizes,
+  fontKeys,
+  fontWeights,
+  type FontKey,
+  type FontWeight,
+  type HexColor,
+  type TextStyle,
+} from "./engine/spec";
+import { fontLabels } from "./engine/fonts";
 import { contrast, textOn } from "./engine/contrast";
 import {
+  compositionChoices,
   ctaOptions,
   effectivePriorities,
   goalOrder,
   intentCopy,
+  spacings,
+  textKeys,
+  type CompositionChoice,
+  type TextKey,
 } from "./engine/creativeModel";
 import { validDestination, type Goal } from "./engine/placements";
 import "./designer.css";
@@ -148,10 +162,12 @@ const setupMissing = (code?: string) => code === "PGRST205" || code === "42P01";
 const setupMessage =
   "Cloud library is not set up on this deployment yet: its database tables are missing. Local saving works. The project owner must run the Supabase migrations listed in the README.";
 const kioskPreset = surfaces.find((s) => s.id === "kiosk")!;
-const priorityLabels: Record<"brand" | "image" | "offer", string> = {
+const priorityLabels: Record<"brand" | "image" | "offer" | "supporting" | "decoration", string> = {
   brand: "Branding",
   image: "Product image",
   offer: "Offer",
+  supporting: "Supporting line",
+  decoration: "Decoration",
 };
 const requiredLabels: Record<CreativeKey, string> = {
   headline: "Headline",
@@ -159,7 +175,23 @@ const requiredLabels: Record<CreativeKey, string> = {
   brand: "Brand",
   image: "Image",
   offer: "Offer",
+  supporting: "Supporting line",
+  decoration: "Decoration",
 };
+const compositionLabels: Record<CompositionChoice, string> = {
+  auto: "Automatic",
+  product: "Product-led",
+  panel: "Photo and panel",
+  type: "Typographic",
+};
+const textKeyLabels: Record<TextKey, string> = {
+  brand: "Brand",
+  headline: "Headline",
+  supporting: "Supporting line",
+  offer: "Offer",
+  cta: "Button",
+};
+const weightLabels: Record<FontWeight, string> = { 400: "Regular", 600: "Semibold", 700: "Bold" };
 // Sales (the brief's product ad) leads the menu; a saved project's goal is kept as chosen.
 const goalMenu: readonly Goal[] = goalOrder;
 
@@ -197,6 +229,8 @@ export default function App() {
   // Character counters show only for the focused field (or near a limit).
   const [focused, setFocused] = useState<string | null>(null);
   const lastImage = useRef<string | null>(null);
+  const decorationRef = useRef<HTMLInputElement>(null);
+  const [styleTarget, setStyleTarget] = useState<TextKey>("headline");
   const [dark, setDark] = useState(() => readLocal(themeKey, false));
   const [message, setMessage] = useState("");
   const [draftStatus, setDraftStatus] = useState("Draft restored");
@@ -984,14 +1018,16 @@ export default function App() {
                     ))}
                   </select>
                 </label>
-                {(["brand", "headline", "offer"] as const).map((key) => {
-                  const limit = key === "headline" ? 160 : 60;
+                {(["brand", "headline", "supporting", "offer"] as const).map((key) => {
+                  const limit = key === "headline" ? 160 : key === "supporting" ? 100 : 60;
                   const label =
                     key === "offer"
                       ? intentCopy[creative.goal].offerLabel
                       : key === "brand"
                         ? "Brand"
-                        : "Headline";
+                        : key === "supporting"
+                          ? "Supporting line"
+                          : "Headline";
                   const missing =
                     creative.required[key] && !creative[key].trim();
                   return (
@@ -1212,6 +1248,332 @@ export default function App() {
                     </div>
                   </details>
                 )}
+                <details className="accordion">
+                  <summary>
+                    <span>Layout</span>
+                    <ChevronDown size={16} className="chev" />
+                  </summary>
+                  <div className="accordion-body">
+                    <div className="field">
+                      <span id="composition-label">Composition</span>
+                      <select
+                        aria-labelledby="composition-label"
+                        value={creative.composition}
+                        onChange={(e) =>
+                          update("composition", e.target.value as CompositionChoice)
+                        }
+                      >
+                        {compositionChoices.map((c) => (
+                          <option key={c} value={c}>
+                            {compositionLabels[c]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {creative.composition !== "auto" && (
+                      <label className="range-field">
+                        <span>
+                          {creative.composition === "type"
+                            ? "Decoration prominence"
+                            : "Image prominence"}{" "}
+                          <b>{creative.imageShare}%</b>
+                        </span>
+                        <input
+                          type="range"
+                          min="25"
+                          max="70"
+                          value={creative.imageShare}
+                          onChange={(e) => update("imageShare", +e.target.value)}
+                        />
+                      </label>
+                    )}
+                    {creative.composition === "panel" && (
+                      <div className="color-row">
+                        <span>Panel</span>
+                        <label className="auto-toggle">
+                          <input
+                            type="checkbox"
+                            checked={!creative.panelColor}
+                            onChange={(e) =>
+                              update(
+                                "panelColor",
+                                e.target.checked ? "" : creative.background,
+                              )
+                            }
+                          />
+                          Background
+                        </label>
+                        <input
+                          type="color"
+                          aria-label="Panel color"
+                          value={creative.panelColor || creative.background}
+                          disabled={!creative.panelColor}
+                          onChange={(e) => update("panelColor", e.target.value)}
+                        />
+                      </div>
+                    )}
+                    <div className="field">
+                      <span id="spacing-label">Spacing</span>
+                      <div
+                        className="segmented size-presets"
+                        role="group"
+                        aria-labelledby="spacing-label"
+                      >
+                        {spacings.map((sp) => (
+                          <button
+                            key={sp}
+                            aria-pressed={creative.spacing === sp}
+                            className={creative.spacing === sp ? "selected" : ""}
+                            onClick={() => update("spacing", sp)}
+                          >
+                            {sp[0].toUpperCase() + sp.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {creative.image && (
+                      <div className="field">
+                        <span id="fit-label">Image fit</span>
+                        <div
+                          className="segmented size-presets"
+                          role="group"
+                          aria-labelledby="fit-label"
+                        >
+                          {(["cover", "contain"] as const).map((f) => (
+                            <button
+                              key={f}
+                              aria-pressed={creative.imageFit === f}
+                              className={creative.imageFit === f ? "selected" : ""}
+                              onClick={() => update("imageFit", f)}
+                            >
+                              {f === "cover" ? "Fill" : "Fit whole image"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="field">
+                      <span>
+                        <span>
+                          Decoration <em>(optional)</em>
+                        </span>
+                      </span>
+                      <div className="image-row">
+                        {creative.decoration ? (
+                          <img
+                            className="image-thumb contain"
+                            src={creative.decoration}
+                            alt="Current decoration"
+                          />
+                        ) : (
+                          <div className="image-thumb empty" aria-hidden="true">
+                            <ImagePlus size={20} />
+                          </div>
+                        )}
+                        <button
+                          className="button small"
+                          onClick={() => decorationRef.current?.click()}
+                        >
+                          <Upload size={14} />{" "}
+                          {creative.decoration ? "Replace" : "Upload"}
+                        </button>
+                        {creative.decoration && (
+                          <button
+                            className="button small"
+                            onClick={() => update("decoration", "")}
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <input
+                      ref={decorationRef}
+                      hidden
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="Upload decoration"
+                      onChange={async (e) => {
+                        try {
+                          const file = e.target.files?.[0];
+                          if (file) update("decoration", await imageData(file));
+                        } catch (err) {
+                          setMessage(errorText(err));
+                        }
+                        e.target.value = "";
+                      }}
+                    />
+                    <p className="help-text">
+                      Automatic picks an arrangement for each screen. A preferred
+                      composition is tried first and falls back when a screen cannot
+                      fit it. Prominence, spacing and sizes are preferences: each
+                      screen's safe area, minimum text size and tap target still
+                      apply, so they may adapt. Decoration appears in the
+                      Typographic composition and is the first thing left out when
+                      space is short.
+                    </p>
+                  </div>
+                </details>
+                {(() => {
+                  const st: TextStyle = creative.textStyles[styleTarget] ?? {};
+                  const isButton = styleTarget === "cta";
+                  const setStyle = (patch: Partial<TextStyle>) =>
+                    setCreative((c) => {
+                      const merged: TextStyle = { ...(c.textStyles[styleTarget] ?? {}), ...patch };
+                      const next = Object.fromEntries(
+                        Object.entries(merged).filter(([, v]) => v !== undefined),
+                      ) as TextStyle;
+                      const textStyles = { ...c.textStyles };
+                      if (Object.keys(next).length) textStyles[styleTarget] = next;
+                      else delete textStyles[styleTarget];
+                      return { ...c, textStyles };
+                    });
+                  const size = Math.round((st.size ?? 1) * 100);
+                  return (
+                    <details className="accordion">
+                      <summary>
+                        <span>Text style</span>
+                        <ChevronDown size={16} className="chev" />
+                      </summary>
+                      <div className="accordion-body">
+                        <label className="field">
+                          <span>Element</span>
+                          <select
+                            value={styleTarget}
+                            onChange={(e) => setStyleTarget(e.target.value as TextKey)}
+                          >
+                            {textKeys.map((k) => (
+                              <option key={k} value={k}>
+                                {textKeyLabels[k]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Font</span>
+                          <select
+                            value={st.font ?? "sans"}
+                            onChange={(e) =>
+                              setStyle({
+                                font:
+                                  e.target.value === "sans"
+                                    ? undefined
+                                    : (e.target.value as FontKey),
+                              })
+                            }
+                          >
+                            {fontKeys.map((f) => (
+                              <option key={f} value={f}>
+                                {fontLabels[f]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Weight</span>
+                          <select
+                            value={st.weight ?? ""}
+                            onChange={(e) =>
+                              setStyle({
+                                weight: e.target.value
+                                  ? (+e.target.value as FontWeight)
+                                  : undefined,
+                              })
+                            }
+                          >
+                            <option value="">Default</option>
+                            {fontWeights.map((w) => (
+                              <option key={w} value={w}>
+                                {weightLabels[w]}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="range-field">
+                          <span>
+                            Preferred size <b>{size}%</b>
+                          </span>
+                          <input
+                            type="range"
+                            min="60"
+                            max="160"
+                            step="5"
+                            value={size}
+                            onChange={(e) =>
+                              setStyle({
+                                size:
+                                  +e.target.value === 100
+                                    ? undefined
+                                    : +e.target.value / 100,
+                              })
+                            }
+                          />
+                        </label>
+                        {!isButton && (
+                          <>
+                            <div className="field">
+                              <span id="align-label">Alignment</span>
+                              <div
+                                className="segmented size-presets"
+                                role="group"
+                                aria-labelledby="align-label"
+                              >
+                                {(["left", "center"] as const).map((a) => (
+                                  <button
+                                    key={a}
+                                    aria-pressed={(st.align ?? "left") === a}
+                                    className={
+                                      (st.align ?? "left") === a ? "selected" : ""
+                                    }
+                                    onClick={() =>
+                                      setStyle({ align: a === "left" ? undefined : a })
+                                    }
+                                  >
+                                    {a === "left" ? "Left" : "Center"}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="color-row">
+                              <span>Color</span>
+                              <label className="auto-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={!st.color}
+                                  onChange={(e) =>
+                                    setStyle({
+                                      color: e.target.checked
+                                        ? undefined
+                                        : (creative.foreground as HexColor),
+                                    })
+                                  }
+                                />
+                                Text color
+                              </label>
+                              <input
+                                type="color"
+                                aria-label={`${textKeyLabels[styleTarget]} color`}
+                                value={st.color ?? creative.foreground}
+                                disabled={!st.color}
+                                onChange={(e) =>
+                                  setStyle({ color: e.target.value as HexColor })
+                                }
+                              />
+                            </div>
+                          </>
+                        )}
+                        <p className="help-text">
+                          {isButton
+                            ? "Button colors, size and rounding are under Appearance. "
+                            : ""}
+                          Preferred size is a starting point: each screen's minimum
+                          text size and the priority ladder may reduce it. Text never
+                          overlaps other content or leaves the safe area.
+                        </p>
+                      </div>
+                    </details>
+                  );
+                })()}
                 {(() => {
                   // Automatic button text resolves to whichever of white / near-black reads better.
                   const buttonLabel = creative.buttonText || textOn(creative.accent);
@@ -1766,7 +2128,7 @@ export default function App() {
                       {creative.useGoalPriorities &&
                         " Turn off “Set by goal” to edit priorities by hand."}
                     </p>
-                    {(["brand", "image", "offer"] as const).map((id) => (
+                    {(["brand", "image", "offer", "supporting", "decoration"] as const).map((id) => (
                       <label className="range-field" key={id}>
                         <span>
                           {id === "offer"

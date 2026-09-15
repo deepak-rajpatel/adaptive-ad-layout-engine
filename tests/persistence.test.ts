@@ -25,7 +25,7 @@ describe("portable project validation", () => {
       surface: { id: "kiosk", name: "Retail kiosk", width: 600, height: 600, safe: 32, minFont: 14, minTarget: 44, minContrast: 4.5 },
     };
     const { creative, surface } = parseProject(legacy);
-    expect(creative.priorities).toEqual({ brand: 4, headline: 1, image: 2, offer: 3, cta: 1 });
+    expect(creative.priorities).toEqual({ brand: 4, headline: 1, image: 2, offer: 3, cta: 1, supporting: 3, decoration: 5 });
     expect(surface).toMatchObject({ safeArea: { top: 32, right: 32, bottom: 32, left: 32 }, minTextSize: 14, input: "touch", minTapTarget: 44 });
   });
   it("migrates legacy projects whose headline priority is not above 5", () => {
@@ -34,13 +34,13 @@ describe("portable project validation", () => {
       creative: { ...v2, priorities: { headline: 1, image: 80, cta: 100, brand: 40, price: 60 } },
       surface: legacySurface,
     });
-    expect(creative.priorities).toEqual({ headline: 5, image: 2, cta: 1, brand: 4, offer: 3 });
+    expect(creative.priorities).toEqual({ headline: 5, image: 2, cta: 1, brand: 4, offer: 3, supporting: 3, decoration: 5 });
     // Version 1 exports are legacy even when every priority happens to be 1–5.
     const v1 = parseProject({ version: 1, creative: { ...v2, priorities: { headline: 5, image: 3, cta: 5, brand: 1, price: 2 } }, surface: legacySurface });
     expect(v1.creative.priorities.brand).toBe(5);
   });
   it("leaves current-schema projects untouched and converts out-of-range priorities", () => {
-    const current = { ...sample, priorities: { headline: 5, image: 5, cta: 5, brand: 5, offer: 5 } } as const;
+    const current = { ...sample, priorities: { headline: 5, image: 5, cta: 5, brand: 5, offer: 5, supporting: 5, decoration: 5 } } as const;
     expect(parseProject({ version: 3, creative: current, surface: surfaces[0] }).creative).toEqual(current);
     const mixed = parseProject({ creative: { ...sample, priorities: { ...sample.priorities, image: 70 } }, surface: surfaces[0] });
     expect(mixed.creative.priorities.image).toBe(2);

@@ -1,5 +1,7 @@
 # Generated design assets
 
+This folder records asset provenance. Current application screenshots are in `docs/screenshots/`; the three retained campaign references and their generation prompts are in [creative-directions-v1](creative-directions-v1/README.md). Six runtime example photographs are documented in [generated-example-assets.md](../docs/generated-example-assets.md). Superseded UI revisions and Claude handoff notes have been archived outside the submission repository.
+
 Both assets were made with the built-in image generation tool on 14 September 2026. No external image-generation API key was used.
 
 - `responsive-reference.png`: one reference board showing desktop, tablet, and smartphone layouts. It informed the implemented responsive UI; it is not a screenshot or a claim of implemented controls.

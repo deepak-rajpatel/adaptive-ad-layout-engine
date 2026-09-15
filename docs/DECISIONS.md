@@ -242,7 +242,7 @@ Each placement plan carries separate fields.
   - Leads: headline and CTA first, incentive next;
   - Sales: the brief's example priorities (headline/image 1, CTA/offer 2, logo 3), so the brief's product ad is the Sales intent and its demo layouts are unchanged.
 
-  The Ad Designer (formerly "Layout studio"; three-column redesign from `design/ui-refresh-v2`) starts with a **Goal** dropdown, Sales listed first; a saved project's goal is kept (default Sales). Intent changes only data: the secondary-text label (Price / Incentive / Tagline / Teaser), the suggested CTAs, and element priorities. It never selects a layout. The CTA is a dropdown of Taboola's 20 labels plus Custom; "None" is excluded because the CTA is required on the brief's surfaces. The sample now has goal priorities on (superseding the step-6 departure below), since Sales priorities equal the brief's.
+  The Ad Designer (formerly "Layout studio"; three-column redesign from an archived local UI reference) starts with a **Goal** dropdown, Sales listed first; a saved project's goal is kept (default Sales). Intent changes only data: the secondary-text label (Price / Incentive / Tagline / Teaser), the suggested CTAs, and element priorities. It never selects a layout. The CTA is a dropdown of Taboola's 20 labels plus Custom; "None" is excluded because the CTA is required on the brief's surfaces. The sample now has goal priorities on (superseding the step-6 departure below), since Sales priorities equal the brief's.
 
   The resolver is not changed; only the spec it receives.
 - **CTA precedence:**

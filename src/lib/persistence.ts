@@ -129,19 +129,38 @@ export function upgradeToV3(value: unknown): unknown {
     buttonText: "",
     buttonSize: "medium",
     buttonRadius: 8,
+    // Composition and typography fields (also without a bump): defaults add nothing to the
+    // spec, so existing drafts, versions and imports keep their exact appearance.
+    supporting: "",
+    decoration: "",
+    composition: "auto",
+    imageShare: 50,
+    panelColor: "",
+    spacing: "normal",
+    imageFit: "cover",
+    textStyles: {},
   };
   if (!("price" in c) || "offer" in c)
-    return { ...defaults, useGoalPriorities: true, required: defaultRequired, ...c };
+    return withNewElements({ ...defaults, useGoalPriorities: true, required: defaultRequired, ...c });
   const { price, ...rest } = c;
   const p = (c.priorities ?? {}) as Record<string, unknown>;
   const { price: pricePriority, ...priorities } = p;
-  return {
+  return withNewElements({
     ...defaults,
     ...rest,
     offer: price,
     priorities: typeof c.priorities === "object" && c.priorities ? { ...priorities, offer: pricePriority } : c.priorities,
     required: defaultRequired,
     useGoalPriorities: false,
+  });
+}
+/** Adds priority and required entries for the supporting line and decoration; existing entries win. */
+function withNewElements(c: Record<string, unknown>): Record<string, unknown> {
+  const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object";
+  return {
+    ...c,
+    priorities: isObject(c.priorities) ? { supporting: 3, decoration: 5, ...c.priorities } : c.priorities,
+    required: isObject(c.required) ? { supporting: false, decoration: false, ...c.required } : c.required,
   };
 }
 

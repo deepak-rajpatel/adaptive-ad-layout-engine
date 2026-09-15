@@ -1,6 +1,7 @@
 // Shared example browsing pieces: goal filters, resolved previews and the example card.
 // Used by the Home gallery and the Create page's chooser.
 import { useMemo } from "react";
+import { ArrowRight } from "lucide-react";
 import type { Goal } from "../engine/placements";
 import type { ResolvedLayout } from "../engine/layout";
 import { resolve } from "../engine/resolver";
@@ -79,11 +80,11 @@ export function ExampleCard({
       <h3>{example.name}</h3>
       <p className="example-goal">{goalLabel(example.goal)}</p>
       <button
-        className="button outline"
-        aria-label={`Use this example: ${example.name}`}
+        className="text-link example-use"
+        aria-label={`Use example: ${example.name}`}
         onClick={() => onUse(example)}
       >
-        Use this example
+        Use example <ArrowRight size={15} />
       </button>
     </article>
   );

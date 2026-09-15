@@ -2,6 +2,7 @@
 export {
   campaignCta,
   campaignTypes,
+  compositionChoices,
   defaultRequired,
   effectivePriorities,
   goalPriorities,
@@ -9,9 +10,14 @@ export {
   goals,
   offerLimit,
   sample,
+  spacings,
+  textKeys,
   toSpec,
   validateCreative,
   type CampaignType,
+  type CompositionChoice,
   type CreativeData as Creative,
   type CreativeKey,
+  type Spacing,
+  type TextKey,
 } from "../engine/creativeModel";

@@ -101,9 +101,6 @@
   justify-content: center;
   min-height: 150px;
 }
-.home-import {
-  margin-top: 26px;
-}
 .home-storage {
   font-size: 12px;
   color: var(--muted);
@@ -692,25 +689,130 @@
 }
 
 /* Home: heading row, recent creatives, example gallery, create from scratch */
+.home:has(.home-hero) {
+  max-width: 1320px;
+}
 .home-hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 45fr) minmax(0, 55fr);
+  align-items: center;
+  gap: 40px;
+  padding: 40px 52px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--accent-soft), var(--soft));
+}
+.home.is-returning .home-hero {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 28px 44px;
+}
+.hero-demo.compact {
+  width: 400px;
+  gap: 10px;
+}
+.hero-demo.compact .hero-demo-top {
+  gap: 12px;
+}
+.hero-demo.compact figcaption {
+  margin-bottom: 3px;
+}
+.home-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
 }
 .home-hero h1 {
-  max-width: 760px;
+  font-size: clamp(38px, 5.4vw, 68px);
+  line-height: 1.02;
+  letter-spacing: -2px;
+}
+.home.is-returning .home-hero h1 {
+  font-size: clamp(32px, 4vw, 46px);
 }
 .home-hero .home-lede {
-  max-width: 680px;
+  font-size: 18px;
+  max-width: 460px;
+  margin-top: 14px;
+}
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
 }
 .home-cta {
+  font-size: 16px;
+  padding: 15px 26px;
+}
+.home-import {
   font-size: 15px;
   padding: 14px 22px;
-  flex-shrink: 0;
+}
+.hero-demo {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.hero-demo-top {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 16px;
+}
+.hero-frame {
+  margin: 0;
+  min-width: 0;
+}
+.hero-frame figcaption {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.hero-frame .preview-frame {
+  box-shadow: 0 14px 30px rgba(40, 24, 10, 0.16);
+}
+.hero-demo-note {
+  font-size: 12px;
+  color: var(--muted);
 }
 .home > section {
-  margin-top: 40px;
+  margin-top: 48px;
+}
+.home.is-returning .home-recent {
+  margin-top: 32px;
+}
+/* One current draft: a single horizontal row, not a tall grid slot. */
+.home-recent-grid.single {
+  display: block;
+}
+.home-recent-grid.single .continue-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 20px 14px 14px;
+}
+.home-recent-grid.single .continue-card .home-thumb {
+  width: auto;
+  min-height: 0;
+  padding: 8px;
+  flex-shrink: 0;
+}
+.home-recent-grid.single .continue-info {
+  flex: 1;
+  min-width: 0;
+}
+.home-recent-grid.single .continue-card .button {
+  margin-top: 0;
+  flex-shrink: 0;
+}
+.continue-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 .home-recent-grid {
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -732,16 +834,24 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-bottom: 22px;
+}
+.gallery-head > div:first-child {
+  margin-right: auto;
 }
 .gallery-head h2 {
-  font-size: 22px;
-  letter-spacing: -0.4px;
+  font-size: clamp(24px, 3vw, 32px);
+  letter-spacing: -0.8px;
 }
 .gallery-head p {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--muted);
   margin-top: 4px;
+}
+.gallery-head .example-filters {
+  margin: 0;
 }
 .gallery-nav {
   display: flex;
@@ -753,9 +863,6 @@
   min-width: 42px;
   min-height: 42px;
   border-radius: 50%;
-}
-.example-gallery .example-filters {
-  margin: 16px 0 14px;
 }
 .gallery-row {
   display: flex;
@@ -771,13 +878,61 @@
   outline-offset: 3px;
 }
 /* Wide enough to read the preview; the next card peeks in at the edge. */
-.gallery-row > .example-card {
-  flex: 0 0 clamp(250px, 27%, 300px);
-  scroll-snap-align: start;
+.gallery-row {
+  gap: 22px;
 }
+/* Three to four substantial cards; the next one peeks in at the edge. */
+.gallery-row > .example-card {
+  flex: 0 0 clamp(260px, 23.5%, 320px);
+  scroll-snap-align: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+/* A soft square stage around the real (square) kiosk preview; proportions untouched. */
 .gallery-row .example-thumb {
-  min-height: 270px;
+  min-height: 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--soft);
   justify-content: center;
+}
+.gallery-row .example-thumb .preview-frame {
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(40, 24, 10, 0.12);
+}
+.gallery-row .example-card h3 {
+  font-size: 16px;
+  margin-top: 10px;
+}
+.gallery-row .example-card {
+  gap: 2px;
+}
+.gallery-row .example-goal {
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.example-use {
+  align-self: flex-start;
+  font-size: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-row {
+    scroll-behavior: auto;
+  }
+}
+@media (max-width: 1000px) {
+  .home-hero,
+  .home.is-returning .home-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 36px 32px;
+  }
+  .hero-demo.compact {
+    display: none;
+  }
+  .gallery-row > .example-card {
+    flex-basis: calc(50% - 11px);
+  }
 }
 .example-goal {
   font-size: 12px;
@@ -808,21 +963,46 @@
   flex-wrap: wrap;
 }
 @media (max-width: 760px) {
-  .home-hero {
-    flex-direction: column;
-    align-items: stretch;
+  .home-hero,
+  .home.is-returning .home-hero {
+    padding: 28px 20px;
+    border-radius: 16px;
   }
-  .home-cta {
+  .home-hero-actions .button {
+    flex: 1 1 100%;
     justify-content: center;
+  }
+  /* Returning phones: work first, so the compact demo is dropped. */
+  .hero-demo.compact {
+    display: none;
+  }
+  .home-recent-grid.single .continue-card {
+    flex-wrap: wrap;
+  }
+  .home-recent-grid.single .continue-card .button {
+    width: 100%;
+    justify-content: center;
+  }
+  /* Simplify decoration on phones: keep one portrait and the banner. */
+  .hero-demo-top .hero-frame:nth-child(2) {
+    display: none;
+  }
+  .hero-demo-top {
+    grid-template-columns: minmax(0, 1fr);
   }
   .gallery-row > .example-card {
     flex-basis: 82%;
   }
-  .home-scratch-actions,
-  .home-scratch-actions .button {
+  .home-scratch .button {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* Decoration thumbnails show the whole artwork. */
+.image-thumb.contain {
+  object-fit: contain;
+  background: #14213d;
 }
 
 /* Example chooser */

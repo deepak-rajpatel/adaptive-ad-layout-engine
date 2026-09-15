@@ -40,9 +40,10 @@ export function ExampleGallery({ onUse }: { onUse: (example: ExampleAd) => void 
     <section className="example-gallery" aria-labelledby="examples-title">
       <div className="gallery-head">
         <div>
-          <h2 id="examples-title">Start with an example</h2>
-          <p>Choose a starting point, then make it yours.</p>
+          <h2 id="examples-title">Find your next starting point</h2>
+          <p>Eight editable examples. Make one yours.</p>
         </div>
+        <GoalFilters goal={goal} onChange={setGoal} label="Filter examples by goal" />
         <div className="gallery-nav">
           <button
             className="icon-button"
@@ -62,7 +63,6 @@ export function ExampleGallery({ onUse }: { onUse: (example: ExampleAd) => void 
           </button>
         </div>
       </div>
-      <GoalFilters goal={goal} onChange={setGoal} label="Filter examples by goal" />
       <div
         ref={row}
         className="gallery-row"
@@ -76,7 +76,7 @@ export function ExampleGallery({ onUse }: { onUse: (example: ExampleAd) => void 
             key={ex.id}
             example={ex}
             result={previews.get(ex.id)!}
-            previewHeight={250}
+            previewHeight={262}
             onUse={onUse}
           />
         ))}

@@ -28,7 +28,7 @@ test.describe("desktop", () => {
   test("first visit → create → edit → platforms → save → reopen → continue → export", async ({ page }) => {
     // 1. First visit: no fabricated work.
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Create one ad. Adapt it to multiple screens." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "One ad. Every screen." })).toBeVisible();
     await expect(page.getByRole("button", { name: /Continue editing/ })).toHaveCount(0);
     await shot(page, "flow-1-home-first");
     await page.getByRole("button", { name: "Create an ad" }).first().click();
@@ -153,6 +153,8 @@ test.describe("examples", () => {
     await expect(page.getByRole("heading", { name: "Your recent creatives" })).toHaveCount(0);
     await expect(row.locator(".example-card")).toHaveCount(8);
     await expect(row.locator(".example-card .preview-frame")).toHaveCount(8);
+    // The hero demonstrates one creative on three real surfaces.
+    await expect(page.locator(".hero-demo figcaption")).toHaveText(["320 × 480", "1080 × 1080", "1920 × 250"]);
     await shot(page, "home-gallery-first");
 
     // Next scrolls inside the row only; changing the filter returns to the start.
@@ -166,7 +168,7 @@ test.describe("examples", () => {
     const useSmallSpace = () =>
       page
         .locator('.example-gallery [data-example-id="traffic-small-space-workspace"]')
-        .getByRole("button", { name: /Use this example/ })
+        .getByRole("button", { name: /Use example/ })
         .click();
     await useSmallSpace();
     await expect(headline(page)).toHaveValue("Make room for better work.");
@@ -204,7 +206,7 @@ test.describe("phone", () => {
   test("main navigation works at a narrow width without horizontal scrolling", async ({ page }) => {
     await page.goto("/");
     const stops: [string, string][] = [
-      ["Home", "Create one ad. Adapt it to multiple screens."],
+      ["Home", "One ad. Every screen."],
       ["Ad Designer", "Ad Designer"],
       ["Ad platforms", "Ad platforms"],
       ["My creatives", "My creatives"],

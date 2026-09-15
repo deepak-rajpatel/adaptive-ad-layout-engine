@@ -33,7 +33,7 @@ One declarative ad spec, resolved by a TypeScript constraint engine into genuine
 
 ## Current workflow and screenshots
 
-Screenshots captured from the running application on 15 September 2026; these are actual UI captures, not generated mockups. Home shows a returning local draft; My creatives shows the real empty library state. Screenshots show the visible desktop viewport.
+Screenshots captured from the running application on 15 September 2026; these are actual UI captures, not generated mockups. Home shows the first-visit experience; My creatives shows the empty local library. The Ad Designer shows the editable TIDYDAY example. Screenshots show the visible desktop viewport.
 
 ![Ad Designer with the shared creative and live preview](docs/screenshots/ad-designer.png)
 
@@ -46,7 +46,7 @@ Screenshots captured from the running application on 15 September 2026; these ar
 | ![Ad platforms](docs/screenshots/ad-platforms.png) | ![My creatives empty state](docs/screenshots/my-creatives.png) |
 
 1. **Home → Create an ad.** Add a headline, optionally choose a goal, image, brand and offer, then open Ad Designer. Sales is first and is used if setup goal selection is skipped. Existing drafts retain their chosen goal.
-2. **Edit and compare.** Change the headline and select the four assignment surfaces. Both DOM and Canvas consume the same resolved layout. Open **Appearance** for background/text/button colours, button size presets and corner rounding.
+2. **Edit and compare.** Change the headline and select the four assignment surfaces. Both DOM and Canvas consume the same resolved layout. Open **Appearance** for colours and button styling, **Text style** for per-element typography, and **Layout** for composition, image prominence, spacing and panel colour. Images support fill or whole-image fitting and focal-point cropping.
 3. **Inspect adaptation.** Under Layout settings, expand **Test smaller sizes** and reduce kiosk height. Use **Layout details** to inspect omissions, reductions and element explanations. The outcome depends on the current creative and constraints; required elements are never silently dropped.
 4. **Try an unseen surface.** Select **Custom surface**, enter dimensions and expand **Accessibility** to adjust constraints. The resolver needs no surface-specific code change.
 5. **Browse Ad platforms.** Filter by Network or Status, expand More filters or a card's View details, and open a placement in Ad Designer. The same creative is retained. Composed PNGs and native image assets are labelled separately.
@@ -94,7 +94,7 @@ Priorities follow the brief: **1 is most important**. The editor builds exactly 
 
 ## Surfaces
 
-Surfaces are data. The required four use the brief's numbers:
+Surfaces are data. The demo includes the four required surface categories, using the brief's example dimensions and interaction constraints where supplied; safe-area insets and other unspecified values are project choices:
 
 | Surface | Size | Safe area (t/r/b/l) | Min text | Viewing | Input / target | Arrangement |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -112,9 +112,9 @@ Also included: a 240 × 80 constrained banner, 13 IAB display sizes (300×250, 7
 1. **Validate** spec and surface. Invalid input returns `status: "invalid"` with readable reasons.
 2. **Check contrast** of text on background and of button text on the accent. Failure returns `impossible`.
 3. **Derive base sizes** from the safe box: unit = `max(minTextSize, min(48, 6% of safe width, 16% of safe height))`; each role has a preferred multiple.
-4. **Generate candidates** for every *size plan* (below) × four arrangement families (stack, gallery, split, strip) × several width shares. Text is wrapped with real measured widths; the CTA is sized to its label and never below the tap target.
-5. **Reject** any candidate with a box outside the safe area, overlapping another, text below the minimum, or a CTA below the target.
-6. **Stop at the first feasible stage.** Size plans are tried in degradation order; the first plan with any valid candidate ends the search, so text never shrinks if a layout fits without shrinking. Within that plan, candidates are scored by aspect-ratio fit, priority-weighted text size kept, image area, and a truncation penalty. Ties break by fixed order, so output is deterministic.
+4. **Generate candidates.** Automatic mode tries each size plan across stack, gallery, split and strip arrangements and several width shares. An optional product, panel or typographic composition is searched first, with automatic arrangements as fallback. These families reflow by aspect ratio, not surface identity. Text uses real measured widths and the selected font; the CTA never falls below the tap target.
+5. **Reject** any candidate with invalid content geometry, text below the minimum, or a CTA below the target. Background imagery and panels may reach the canvas edges. Content overlapping background imagery must be entirely backed by a solid panel, with text contrast checked against that panel.
+6. **Choose deterministically.** Within each search, stop at the first feasible size plan and score its candidates. Automatic mode therefore never shrinks text when an automatic arrangement fits at preferred size. An explicit composition preference is searched before automatic fallback and can retain that composition with smaller text. Scores consider retained text size, image area and truncation; composition scores also penalize broken words and deviation from the requested image share.
 7. **If nothing survives, omit** the least important optional element and go back to step 4. If only required elements remain and nothing fits, return `impossible` with a reason.
 
 ### Priority and degradation
@@ -129,6 +129,12 @@ Degradation is ordered, not improvised:
 | Drop | Optional elements are omitted highest-number first (later-declared first on ties). Required elements are never dropped |
 
 Text never goes below the surface's `minTextSize`; the CTA never below `minTapTarget`. Each resolved element carries an `explanation` (slot, size, reduction and why, line count and measured width, truncation, target compliance), shown in the inspector. `decisions` records the chosen arrangement with runner-up scores. See [ARCHITECTURE.md](ARCHITECTURE.md) for the scoring formula and cost.
+
+### Editable creative examples
+
+Home includes eight fictional campaigns, with real resolver previews. DAYFORM uses a product-led composition, TIDYDAY a photo and solid copy panel, and OPEN SHELF a typographic composition with a separate book illustration. Brand, headline, supporting line, offer, CTA, image and decoration remain independent elements. The three font choices are installed system stacks; each text element can set weight, preferred size, alignment and colour. See [examples and asset provenance](docs/examples.md).
+
+The original five roles remain supported; supporting text and decorative imagery extend the model to seven roles, with one element per role. Optional decoration uses priority 5 in the examples. Preferred-family candidates retain decoration only at preferred text sizes; normal priority-based omission and automatic fallback still apply. Old drafts receive defaults for new fields, and the v2 golden-fixture test checks identical legacy layouts.
 
 ## TypeScript design
 
@@ -179,13 +185,13 @@ Row-level security limits every creative to `auth.uid() = user_id`; storage poli
 - Unfinished Create-page inputs and pending image processing survive in-app navigation, but not a full reload. Once created, the current creative uses local draft autosaving.
 - Drafts and local versions depend on browser storage; export JSON for a portable backup. Cloud features require the optional Supabase setup and are not required for the assignment demo.
 
-- **One element per role** and a fixed role set (primary, secondary, hero, action, branding). Branding is a text wordmark; a logo image would need its own sizing rule.
-- **Landscape and kiosk share the gallery family.** The tall, wide, and square surfaces get three different arrangements (stack, strip, gallery). Mobile landscape fits gallery at full size, and the resolver never shrinks text just to reach a differently shaped layout, so it does not switch to split unless space runs short.
-- **Bounded search:** four arrangement families. A general solver could find layouts this one reports as impossible. Score weights are hand-tuned for predictability, not learned.
+- **One element per role:** primary, secondary, hero, action, branding, supporting and decoration. Branding is a text wordmark; independent image logos, badges, masks and arbitrary graphic layers are not implemented.
+- **Automatic sample arrangements:** landscape and kiosk share gallery; portrait uses stack and broadcast uses strip. The three optional composition families offer additional visual directions and aspect-ratio reflow.
+- **Bounded search:** four automatic arrangements and three optional composition families. A general solver could find layouts this one reports as impossible. Score weights are hand-tuned, not learned. Composition preference may select reduced text before trying automatic fallback.
 - **Preferred sizes follow the safe box.** On very shallow surfaces (below about 400 px of safe height) preferred sizes fall with height, so while dragging the kiosk demo the status can return to "ready" at some heights after being "adapted" at taller ones. Every result is still valid and explained.
 - No text is placed over the product photo, so contrast-aware placement over images is not needed or modeled. Contrast covers solid text/background and button text only; this is not a full WCAG audit.
 - Social safe zones are approximate; confirm each platform's current guidance. IAB and social presets check canvas geometry only, not file weight, animation, or ad-network policy.
-- Resolution cost is about 1–2 ms per surface in Node with a stub measurer; the studio resolves five surfaces per edit.
+- Earlier automatic-mode benchmarks measured about 1–2 ms per surface with a stub measurer; these are not measurements of the new composition families or browser rendering.
 - Browser verification ran on Chromium-based Edge only.
 - External HTTPS images may block PNG export through CORS; upload the image instead.
 - **Planner:**
@@ -203,8 +209,8 @@ Development, review and revisions took place on **14–15 September 2026**, acro
 
 AI assistance is disclosed as required by the assignment:
 
-- **Codex:** initial architecture and implementation assistance, code review, documentation, and generated design references and the fictional headphone asset (see [design/README.md](design/README.md)). It also helped review the connected workflow and refresh these screenshots and instructions.
-- **Claude Code:** engine/brief alignment, the creative-first placement planner, the three-column Ad Designer and Appearance controls, connected Home/Create/My creatives workflow, persistence and upload fixes, and automated checks.
+- **Codex:** initial architecture and implementation assistance, code review, documentation, generated design references, the fictional headphone asset and six example photographs (see [design/README.md](design/README.md) and [asset prompts](docs/generated-example-assets.md)). It also reviewed the connected workflow and prepared submission documentation and screenshots.
+- **Claude Code:** engine/brief alignment, placement planner, Ad Designer controls, connected Home/Create/My creatives workflow, persistence and upload fixes, editable composition families, typography, the book SVG illustration, and automated checks.
 - **Author:** selected the design direction, reviewed the UI, requested revisions and is responsible for the submitted implementation and explaining its behaviour.
 
 The repository retains AI co-author credits. The assignment permits AI tools with disclosure and expects the author to explain the final code, demonstrate degradation and add an unseen surface during interview.

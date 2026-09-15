@@ -29,3 +29,26 @@ export function coverCrop(
     height,
   };
 }
+
+/**
+ * Where a whole source image is drawn inside a box, relative to the box. Matches CSS
+ * `object-fit: contain` with `object-position: fx% fy%` (the focal point anchors it).
+ */
+export function containFit(
+  sourceWidth: number,
+  sourceHeight: number,
+  boxWidth: number,
+  boxHeight: number,
+  focalX: number,
+  focalY: number,
+): CropRect {
+  const scale = Math.min(boxWidth / sourceWidth, boxHeight / sourceHeight);
+  const width = sourceWidth * scale;
+  const height = sourceHeight * scale;
+  return {
+    x: ((boxWidth - width) * focalX) / 100,
+    y: ((boxHeight - height) * focalY) / 100,
+    width,
+    height,
+  };
+}

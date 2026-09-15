@@ -26,7 +26,8 @@ AdSpec (defineAd)  +  Surface (defineSurface)  +  Measure (injected)
 | --- | --- | --- |
 | `src/engine/spec.ts` | `AdSpec`, `ElementSpec`, `Role`, `Priority`, `defineAd`, runtime `validateSpec` | nothing |
 | `src/engine/surfaces.ts` | `Surface` (discriminated by `input`), `defineSurface`, `validateSurface`, safe-area helpers | `layout.ts` types |
-| `src/engine/text.ts` | `Measure` type, measured word wrap with optional hyphenation, one-line ellipsis truncation | nothing |
+| `src/engine/text.ts` | `Measure` type (text, size, weight, font), measured word wrap with optional hyphenation, one-line ellipsis truncation | `spec.ts` types |
+| `src/engine/fonts.ts` | The curated font set: installed system font stacks shared by measurement and both renderers | `spec.ts` types |
 | `src/engine/contrast.ts` | WCAG contrast ratio; readable button text color | nothing |
 | `src/engine/resolver.ts` | The algorithm: size plans, candidate generation, validation, scoring, explanations | the four above |
 | `src/engine/layout.ts` | `ResolvedLayout` output contract consumed by renderers | `spec.ts` types |
@@ -83,9 +84,27 @@ Each plan is tried in four arrangement families, each with several width shares 
 
 Text is wrapped with the injected `Measure`. Headline and secondary text may hyphenate words wider than the column; CTA and branding may not. The CTA is sized to its label plus padding, never below the tap target. Any candidate failing `geometryErrors` (non-finite or empty boxes, outside the safe area, text below minimum, CTA below target, any pairwise overlap) is discarded.
 
+### Composition families (optional preferences)
+
+A spec may carry `composition: { family, imageShare, panel? }`. Without it, only the four arrangements above run, exactly as before. With it, the family is tried first for each element set, through the same degradation ladder, and the automatic arrangements are the fallback; the decisions say which was used and why.
+
+| Family | Portrait (ratio < 0.9) | Square and landscape | Band (ratio ≥ 2.2) |
+| --- | --- | --- | --- |
+| `product` | copy on top, product region below | copy column left, product region right | message and offer columns, product region trailing |
+| `panel` | photo on top, solid panel below | solid panel left, photo right | panel with message and offer columns, photo right |
+| `type` | headline block, closing copy, decoration lower right | headline block, closing copy lower left, decoration lower right | message and offer columns, decoration trailing |
+
+Each family tries the requested image share and ±10 points. Within the first plan that fits, variants are scored by kept text size, image area, truncation, distance from the requested share, and words broken by hyphenation.
+
+Families reflow by aspect ratio; they never scale a fixed square design. Product images, photos and decoration are **background layers**: they may extend past the safe area to the surface edges, and `geometryErrors` rejects any content overlapping one unless the content sits entirely on a solid panel. Text therefore never sits on a photograph. Contrast is checked on every ground text can use: the background for the automatic arrangements and the product and typographic families, the panel fill for the panel family. If only the panel fails, the family is skipped with a reason; if every usable ground fails, the result is `impossible`.
+
+Decoration (`role: "decoration"`, priority 5 and optional in the examples) is kept by a composition only at preferred text sizes. Automatic arrangements do not place decoration. If no candidate fits, omission still follows the declared priorities and required flags; making decoration required can therefore make a constrained layout impossible.
+
+Text and buttons may carry a `style` (font from the curated set, weight 400/600/700, a 0.6–1.6× preferred-size multiplier, alignment, colour). The multiplier changes the preferred size only; the minimum text size and the ladder still apply. `spacing` scales the gap between elements.
+
 ### Choosing and omitting
 
-Stages are strictly ordered. The resolver walks the size plans in order and stops at the **first plan with any valid candidate**; scores only compare arrangements within that plan. So text is never reduced while some arrangement fits it at a less degraded stage, and a nicer-looking arrangement can never buy extra shrinking. Within the chosen plan, candidates are scored:
+Within each search, size plans are strictly ordered: the resolver stops at the **first plan with any valid candidate** and scores only its variants. In automatic mode, text is never reduced when an automatic arrangement fits at a less degraded stage. With a composition preference, the preferred family is searched before automatic fallback, so it can win with reduced text even when an automatic arrangement would fit at preferred size. The following score applies to automatic arrangements:
 
 ```text
 score = −40 · |ln(surfaceRatio / idealRatio[arrangement])|
@@ -102,11 +121,11 @@ Every resolved element carries its slot ("Right text column, vertically centred 
 
 ### Cost
 
-At most about 7 plans × 10 geometry variants per element set, and at most four element sets. There is no recursion and no unbounded search. `npm run benchmark` measures it with a deterministic width stub.
+Search is bounded by the active element set: each size plan tries up to 10 automatic geometry variants and, when requested, up to 3 composition shares. Each failed omission pass removes one optional element, so there are at most the optional-element count plus one passes. The number of size plans depends on the text priorities and truncatable content. There is no recursion or unbounded search. `npm run benchmark` measures automatic examples with a deterministic width stub; it is not a browser or all-composition benchmark.
 
 ## Correctness guarantees
 
-- Valid output (`ready` / `adapted`) always passes `geometryErrors`: inside the safe area, no overlaps, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces.
+- Valid output (`ready` / `adapted`) passes `geometryErrors`: content stays inside the safe area without unintended overlap, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces. Explicit background layers and panels may extend to canvas edges; content over background imagery requires a solid backing panel.
 - `invalid` (bad input) and `impossible` (valid input that cannot fit or fails contrast) are distinct and both carry reasons. Neither returns elements.
 - No copy is silently cut: text wraps; only `truncate: true` secondary text may end in an ellipsis, and that is reported in its explanation and the decisions.
 - Resolution depends only on dimensions and constraints. `tests/engine.test.ts` checks that renaming a surface yields an identical result.
@@ -118,7 +137,11 @@ At most about 7 plans × 10 geometry variants per element set, and at most four 
 
 ## Rendering and export
 
-DOM and Canvas consume the same `ResolvedLayout`: identical boxes, lines, font sizes, line heights, and colors. Images are cover-cropped with the same focal-point math. The editor zooms the native-size artboard to fit; PNG export renders at the surface's real pixel size. The artboard fades in on each update; reduced-motion preferences disable the animation.
+DOM and Canvas consume the same `ResolvedLayout`: identical boxes, lines, font sizes, line heights, and colors. Images are cover-cropped with the same focal-point math. The editor zooms the native-size artboard to fit; PNG export renders at the surface's real pixel size. The artboard fades in on each update (opacity only, never geometry); reduced-motion preferences disable the animation.
+
+Both renderers paint in one explicit order from `paintOrder()` in `layout.ts`: background colour, background images, panels, then content. Images use the same cover or contain maths (`crop.ts`). Fonts are installed system stacks (`fonts.ts`), so the font that wraps the text is the font that draws it; the Canvas renderer still waits for `document.fonts` before drawing and exporting.
+
+Future animation fits after resolution: creative → resolved layout → animation transforms → renderer or exporter. Elements already have stable ids, separate content and assets, and an explicit layer order; transforms would never feed back into layout validation. No timeline, playback, GIF or video export exists yet.
 
 ## Persistence and cloud
 
