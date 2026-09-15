@@ -15,7 +15,7 @@ Eight editable examples, two per goal, defined in `src/engine/examples.ts`. Bran
 
 ## Creative directions
 
-DAYFORM, TIDYDAY and OPEN SHELF follow the approved references in `design/creative-directions-v1/`. Those PNGs are visual references only and are not loaded anywhere. Each example is rebuilt from separate, editable elements through reusable composition families, not example-specific code:
+DAYFORM, TIDYDAY and OPEN SHELF follow three approved AI-generated visual references. Those flattened PNGs were art direction only: they were never loaded by the application and are kept outside the submission. Each example is rebuilt from separate, editable elements through reusable composition families, not example-specific code:
 
 | Example | Composition | Editable elements |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ CTAs use the curated button list (Shop Now, Get Quote, Learn More) rather than t
 
 ## Image provenance
 
-- `public/headphones.jpg`: the project's existing product image, used only for Voxora.
+- `public/headphones.jpg`: a fictional, unbranded headphone product render made with Codex's built-in image-generation tool on 14 September 2026 (a web-optimized copy of the original render; no text, logo or watermark). Used by Voxora and the Home hero demonstration.
 - The six JPEG files in `public/examples/` are original AI-generated images, created on 15 September 2026 with Codex's built-in OpenAI image-generation tool for these fictional campaigns. They are not stock photos and do not show verified real places, products or venues. No third-party licence is claimed; use is subject to the applicable OpenAI terms. The exact generation prompts are in [generated-example-assets.md](generated-example-assets.md).
 - Each is a photograph only, with no headlines, logos, prices or buttons. All ad text stays as separate, editable elements.
 - `public/examples/open-shelf-book.svg`: an original abstract open-book illustration, hand-authored as vector code for this project (15 September 2026). It has no external source and contains no text. It is decoration: replaceable, never cropped, and the first element omitted when space is short.

@@ -608,7 +608,7 @@ function search(ctx: Context, active: readonly ElementSpec[], plans: Plan[], var
       if (!c) continue;
       const elements = finish(ctx, c.placed, v.arrangement, plan.label);
       const panels = finishPanels(ctx, c.panels, worst);
-      if (geometryErrors(elements, s, panels).length) continue;
+      if (completenessErrors(elements, active).length || geometryErrors(elements, s, panels).length) continue;
       const kept = c.placed.reduce((sum, p) => sum + (p.text ? (6 - p.el.priority) * p.text.scale : 0), 0);
       const heroBox = c.placed.find((p) => p.el.role === "hero");
       const imageShare = heroBox ? (heroBox.width * heroBox.height) / (s.width * s.height) : 0;
@@ -639,6 +639,37 @@ const familyNames: Record<CompositionFamily, string> = {
   panel: "photo-and-panel",
   type: "typographic",
 };
+const textRoles: Role[] = ["branding", "primary", "supporting", "secondary", "action"];
+/** Roles the automatic arrangements can place (decoration is never placed by them). */
+const autoRoles: Role[] = [...textRoles, "hero"];
+/** Roles each family can place, and the role it cannot work without. */
+const familyRoles: Record<CompositionFamily, { places: Role[]; needs?: Role }> = {
+  product: { places: [...textRoles, "hero"], needs: "hero" },
+  panel: { places: [...textRoles, "hero"], needs: "hero" },
+  type: { places: [...textRoles, "decoration"] },
+};
+
+/**
+ * Completeness check applied to every candidate alongside geometryErrors: each active element
+ * must be placed exactly once, and nothing outside the active set may appear. Elements leave a
+ * layout only through the resolver's recorded omission step, never by a candidate skipping them.
+ */
+export function completenessErrors(
+  placed: readonly { id: string }[],
+  active: readonly { id: string }[],
+): string[] {
+  const errors: string[] = [];
+  const counts = new Map<string, number>();
+  for (const p of placed) counts.set(p.id, (counts.get(p.id) ?? 0) + 1);
+  for (const e of active) {
+    const n = counts.get(e.id) ?? 0;
+    if (n === 0) errors.push(`${e.id}: not placed`);
+    else if (n > 1) errors.push(`${e.id}: placed ${n} times`);
+  }
+  for (const id of counts.keys())
+    if (!active.some((e) => e.id === id)) errors.push(`${id}: not in the element set`);
+  return errors;
+}
 
 /**
  * Resolution, step by step:
@@ -735,14 +766,36 @@ export function resolve(spec: AdSpec, s: Surface, measure: Measure): ResolvedLay
       }),
     );
 
+  /** Whether any arrangement available for this spec and palette can place a role at all. */
+  const canPlace = (role: Role) =>
+    (fallbackAllowed && autoRoles.includes(role)) ||
+    (!!family && familyAllowed && familyRoles[family].places.includes(role));
+  const omissionReasons = new Map<string, string>();
+
   for (let step = 0; step <= dropOrder.length; step++) {
     const active = spec.elements.filter((e) => !omitted.some((o) => o.id === e.id));
     const plans = sizePlans(active);
     // Decoration never costs content: with it present, only preferred text sizes are tried.
     const hasDecoration = active.some((e) => e.role === "decoration");
     let chosen: Chosen | null = null;
-    if (family && familyAllowed)
-      chosen = search(ctx, active, hasDecoration ? plans.slice(0, 1) : plans, familyVariants(active, family), panelWorst);
+    // Why the preferred family was not used for this element set (reported on fallback).
+    let familyReason = "";
+    if (family && familyAllowed) {
+      const unsupported = active.filter((e) => !familyRoles[family].places.includes(e.role));
+      const need = familyRoles[family].needs;
+      if (unsupported.length)
+        familyReason = `cannot place ${unsupported.map((e) => `${e.id} (${e.role})`).join(", ")}`;
+      else if (need && !active.some((e) => e.role === need))
+        familyReason = "needs an image, and this creative has none";
+      else {
+        chosen = search(ctx, active, hasDecoration ? plans.slice(0, 1) : plans, familyVariants(active, family), panelWorst);
+        if (!chosen)
+          familyReason = hasDecoration
+            ? "could not fit these elements with the decoration at preferred text sizes"
+            : "could not fit these elements at any allowed text size";
+      }
+    } else if (family)
+      familyReason = `was skipped: its text contrast (${panelWorst.toFixed(2)}:1) is below ${s.minContrast}:1`;
     const usedFamily = !!chosen;
     if (!chosen && fallbackAllowed) chosen = search(ctx, active, plans, autoVariants(active), backgroundWorst);
     if (chosen) {
@@ -761,11 +814,7 @@ export function resolve(spec: AdSpec, s: Surface, measure: Measure): ResolvedLay
         decisions: [
           first,
           ...(family && !usedFamily
-            ? [
-                familyAllowed
-                  ? `The preferred ${familyNames[family]} composition could not fit these elements at any allowed text size, so an automatic arrangement was used.`
-                  : `The preferred ${familyNames[family]} composition was skipped: its text contrast (${panelWorst.toFixed(2)}:1) is below ${s.minContrast}:1.`,
-              ]
+            ? [`The preferred ${familyNames[family]} composition ${familyReason}, so an automatic arrangement was used.`]
             : []),
           ...(usedFamily && chosen.panels.length
             ? [`Copy sits on a solid panel; text contrast ${panelWorst.toFixed(2)}:1 is checked against the panel, not the photo.`]
@@ -777,11 +826,7 @@ export function resolve(spec: AdSpec, s: Surface, measure: Measure): ResolvedLay
               ? "Remaining elements kept their preferred text size."
               : "Every element kept its preferred text size.",
           ...(truncated ? ["Secondary text truncated with an ellipsis instead of dropping it."] : []),
-          ...omitted.map((o) =>
-            o.role === "decoration"
-              ? `${o.id} (decoration, priority ${o.priority}) omitted: decorative artwork is kept only when all content fits at its preferred size with it.`
-              : `${o.id} (${o.role}, priority ${o.priority}) omitted after every shrink and truncation plan failed with it included.`,
-          ),
+          ...omitted.map((o) => omissionReasons.get(o.id)!),
           `Safe area ${s.safeArea.top}/${s.safeArea.right}/${s.safeArea.bottom}/${s.safeArea.left} px respected; text at least ${s.minTextSize} px${ctx.target ? `; tap targets at least ${ctx.target} px` : ""}.`,
         ],
       };
@@ -789,15 +834,37 @@ export function resolve(spec: AdSpec, s: Surface, measure: Measure): ResolvedLay
     if (step < dropOrder.length) {
       const e = dropOrder[step];
       omitted.push({ id: e.id, role: e.role, priority: e.priority });
+      omissionReasons.set(
+        e.id,
+        !canPlace(e.role)
+          ? `${e.id} (${e.role}, priority ${e.priority}) omitted: no arrangement available here can place it${e.role === "decoration" ? " (decoration appears only in the typographic composition)" : ""}.`
+          : e.role === "decoration"
+            ? `${e.id} (decoration, priority ${e.priority}) omitted: decorative artwork is kept only when all content fits at its preferred size with it.`
+            : `${e.id} (${e.role}, priority ${e.priority}) omitted after every shrink and truncation plan failed with it included.`,
+      );
     }
   }
-  const required = spec.elements.filter((e) => e.required).map((e) => e.id);
+  const requiredElements = spec.elements.filter((e) => e.required);
+  const unplaceable = requiredElements.filter((e) => !canPlace(e.role));
+  const hints = [
+    ...new Set(
+      unplaceable.map((e) =>
+        e.role === "decoration"
+          ? "Decoration is placed only by the typographic composition: choose it, or make the decoration optional."
+          : e.role === "hero"
+            ? "Images are placed by the automatic arrangements and the product-led and photo-and-panel compositions."
+            : "",
+      ),
+    ),
+  ].filter(Boolean);
   return {
     ...base,
     status: "impossible",
     omitted,
     errors: [
-      `Required elements (${required.join(", ")}) cannot fit within these constraints even after all optional elements are omitted. Increase the surface, reduce the safe area or minimum sizes, or shorten the copy.`,
+      unplaceable.length
+        ? `Required ${unplaceable.map((e) => e.id).join(", ")} cannot be placed by any arrangement available here. ${hints.join(" ")}`
+        : `Required elements (${requiredElements.map((e) => e.id).join(", ")}) cannot fit within these constraints even after all optional elements are omitted. Increase the surface, reduce the safe area or minimum sizes, or shorten the copy.`,
     ],
   };
 }

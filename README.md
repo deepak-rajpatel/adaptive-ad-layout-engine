@@ -13,6 +13,7 @@ Submission for FLAM's Frontend R&D assignment *Adaptive Layout Engine for Multi-
 | Meaningfully different arrangements | Each surface card names the arrangement the resolver chose for it |
 | Intentionally constrained surface, clean degradation | Layout settings → Test smaller sizes (drag the kiosk height), or [`?surface=kiosk&height=520`](https://adaptive-ad-layout-engine.vercel.app/?surface=kiosk&height=520); the *Constrained banner* preset |
 | No overlap / clipping | `geometryErrors()` on every candidate; `npm test`, `verify.html` |
+| No silent content loss | `completenessErrors()` on every candidate: each element is placed exactly once or explicitly omitted with a reason; required elements are never omitted |
 | Typed spec, surfaces and output; invalid input rejected | `tests/types.test.ts` (compile-time), `validateSpec` / `validateSurface` (runtime) |
 | Spec → resolution → output → rendering separation | `src/engine/*` (no React/DOM, enforced by a test) → `src/render/dom.ts`, `src/render/canvas.ts` |
 | Bonus: unseen 5th surface | Surface menu → *Custom surface* |
@@ -25,7 +26,7 @@ The brief's suggested files map to: `spec.ts` → `src/engine/spec.ts`, `surface
 
 ## Extension: ad-platform planner
 
-The **Ad platforms** tab (or `?view=platforms`) is beyond the brief. It applies the same engine to 27 verified placements (Meta, Google, Taboola, LinkedIn plus the four assignment surfaces), with crop checks, copy-length checks and PNG export. Sources: [docs/catalog-verification.md](docs/catalog-verification.md). Results are planning checks, not network approval; TikTok is not buildable until verified. Details: [docs/CREATIVE_FIRST.md](docs/CREATIVE_FIRST.md), [docs/DECISIONS.md](docs/DECISIONS.md).
+The **Ad platforms** tab (or `?view=platforms`) is beyond the brief. It applies the same engine to 27 verified placements (Meta, Google, Taboola, LinkedIn plus the four assignment surfaces), with crop checks, copy-length checks and PNG export. Sources: [docs/catalog-verification.md](docs/catalog-verification.md). Results are planning checks, not network approval; TikTok is not buildable until verified. Details: [docs/CREATIVE_FIRST.md](docs/CREATIVE_FIRST.md).
 
 [Live studio](https://adaptive-ad-layout-engine.vercel.app/) · [Source](https://github.com/deepak-rajpatel/adaptive-ad-layout-engine) · [Architecture](ARCHITECTURE.md) · [Verification](VERIFICATION.md)
 
@@ -113,9 +114,9 @@ Also included: a 240 × 80 constrained banner, 13 IAB display sizes (300×250, 7
 2. **Check contrast** of text on background and of button text on the accent. Failure returns `impossible`.
 3. **Derive base sizes** from the safe box: unit = `max(minTextSize, min(48, 6% of safe width, 16% of safe height))`; each role has a preferred multiple.
 4. **Generate candidates.** Automatic mode tries each size plan across stack, gallery, split and strip arrangements and several width shares. An optional product, panel or typographic composition is searched first, with automatic arrangements as fallback. These families reflow by aspect ratio, not surface identity. Text uses real measured widths and the selected font; the CTA never falls below the tap target.
-5. **Reject** any candidate with invalid content geometry, text below the minimum, or a CTA below the target. Background imagery and panels may reach the canvas edges. Content overlapping background imagery must be entirely backed by a solid panel, with text contrast checked against that panel.
+5. **Reject** any candidate that does not place every active element exactly once, or that has invalid content geometry, text below the minimum, or a CTA below the target. A composition that cannot place an active role (the typographic family has no image slot; product and panel have no decoration slot) is skipped with that reason, and the automatic arrangements are tried. Background imagery and panels may reach the canvas edges. Content overlapping background imagery must be entirely backed by a solid panel, with text contrast checked against that panel.
 6. **Choose deterministically.** Within each search, stop at the first feasible size plan and score its candidates. Automatic mode therefore never shrinks text when an automatic arrangement fits at preferred size. An explicit composition preference is searched before automatic fallback and can retain that composition with smaller text. Scores consider retained text size, image area and truncation; composition scores also penalize broken words and deviation from the requested image share.
-7. **If nothing survives, omit** the least important optional element and go back to step 4. If only required elements remain and nothing fits, return `impossible` with a reason.
+7. **If nothing survives, omit** the least important optional element, record why, and go back to step 4. If only required elements remain and nothing fits, or a required element cannot be placed by any available arrangement, return `impossible` with a reason naming the cause.
 
 ### Priority and degradation
 
@@ -209,7 +210,7 @@ Development, review and revisions took place on **14–15 September 2026**, acro
 
 AI assistance is disclosed as required by the assignment:
 
-- **Codex:** initial architecture and implementation assistance, code review, documentation, generated design references, the fictional headphone asset and six example photographs (see [design/README.md](design/README.md) and [asset prompts](docs/generated-example-assets.md)). It also reviewed the connected workflow and prepared submission documentation and screenshots.
+- **Codex:** initial architecture and implementation assistance, code review, documentation, generated design references (kept outside the submission; never loaded by the app), the fictional headphone asset and six example photographs (see [asset provenance](docs/examples.md#image-provenance) and [asset prompts](docs/generated-example-assets.md)). It also reviewed the connected workflow and prepared submission documentation and screenshots.
 - **Claude Code:** engine/brief alignment, placement planner, Ad Designer controls, connected Home/Create/My creatives workflow, persistence and upload fixes, editable composition families, typography, the book SVG illustration, and automated checks.
 - **Author:** selected the design direction, reviewed the UI, requested revisions and is responsible for the submitted implementation and explaining its behaviour.
 

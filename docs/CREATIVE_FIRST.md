@@ -2,7 +2,7 @@
 
 The assignment's constraint solver stays the composition engine. The planner starts from one creative and shows every place it can run. It keeps three things apart: the network's objective, the ad format, and the physical canvas.
 
-Specification: [planner-spec.md](planner-spec.md). Decisions and progress: [DECISIONS.md](DECISIONS.md). Sources for every size and limit: [catalog-verification.md](catalog-verification.md).
+Sources for every size and limit: [catalog-verification.md](catalog-verification.md). The original planner specification and decision log were working documents and are not part of the submission.
 
 ## Workflow
 

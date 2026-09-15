@@ -82,7 +82,7 @@ Each plan is tried in four arrangement families, each with several width shares 
 - **split** — image column beside a vertically centred text column.
 - **strip** — image tile, message column, then an offer/CTA column.
 
-Text is wrapped with the injected `Measure`. Headline and secondary text may hyphenate words wider than the column; CTA and branding may not. The CTA is sized to its label plus padding, never below the tap target. Any candidate failing `geometryErrors` (non-finite or empty boxes, outside the safe area, text below minimum, CTA below target, any pairwise overlap) is discarded.
+Text is wrapped with the injected `Measure`. Headline and secondary text may hyphenate words wider than the column; CTA and branding may not. The CTA is sized to its label plus padding, never below the tap target. Any candidate failing `geometryErrors` (non-finite or empty boxes, outside the safe area, text below minimum, CTA below target, any pairwise overlap) is discarded. So is any candidate failing `completenessErrors`: every active element must be placed exactly once, and nothing outside the active set may appear. A candidate can therefore never drop an element; elements leave a layout only through the recorded omission step below.
 
 ### Composition families (optional preferences)
 
@@ -98,7 +98,9 @@ Each family tries the requested image share and ±10 points. Within the first pl
 
 Families reflow by aspect ratio; they never scale a fixed square design. Product images, photos and decoration are **background layers**: they may extend past the safe area to the surface edges, and `geometryErrors` rejects any content overlapping one unless the content sits entirely on a solid panel. Text therefore never sits on a photograph. Contrast is checked on every ground text can use: the background for the automatic arrangements and the product and typographic families, the panel fill for the panel family. If only the panel fails, the family is skipped with a reason; if every usable ground fails, the result is `impossible`.
 
-Decoration (`role: "decoration"`, priority 5 and optional in the examples) is kept by a composition only at preferred text sizes. Automatic arrangements do not place decoration. If no candidate fits, omission still follows the declared priorities and required flags; making decoration required can therefore make a constrained layout impossible.
+Each family places a fixed set of roles: `product` and `panel` place text and the hero image (and need one); `type` places text and decoration but has no image slot. The automatic arrangements place text and the hero, never decoration. When the active elements include a role the family cannot place, the family is skipped for that element set with that reason in the decisions ("the preferred typographic composition cannot place image (hero), so an automatic arrangement was used"), and the automatic arrangements are tried.
+
+Decoration (`role: "decoration"`, priority 5 and optional in the examples) is kept by the typographic family only at preferred text sizes. If no candidate fits, omission follows the declared priorities and required flags, and each omission records its actual reason (for example, "no arrangement available here can place it"). A required element that no available arrangement can place (required decoration with the product or panel family, for instance) makes the result `impossible`, and the error names the element and says which arrangements can place it.
 
 Text and buttons may carry a `style` (font from the curated set, weight 400/600/700, a 0.6–1.6× preferred-size multiplier, alignment, colour). The multiplier changes the preferred size only; the minimum text size and the ladder still apply. `spacing` scales the gap between elements.
 
@@ -126,7 +128,8 @@ Search is bounded by the active element set: each size plan tries up to 10 autom
 ## Correctness guarantees
 
 - Valid output (`ready` / `adapted`) passes `geometryErrors`: content stays inside the safe area without unintended overlap, text ≥ `minTextSize`, CTA ≥ `minTapTarget` on interactive surfaces. Explicit background layers and panels may extend to canvas edges; content over background imagery requires a solid backing panel.
-- `invalid` (bad input) and `impossible` (valid input that cannot fit or fails contrast) are distinct and both carry reasons. Neither returns elements.
+- Valid output is complete: every spec element is either placed exactly once or listed in `omitted` with a reason in `decisions`. Required elements are never omitted. `tests/composition.test.ts` checks this for every composition family with absent, optional and required hero and decoration, on the four required surfaces.
+- `invalid` (bad input) and `impossible` (valid input that cannot fit, cannot be placed, or fails contrast) are distinct and both carry reasons. Neither returns elements.
 - No copy is silently cut: text wraps; only `truncate: true` secondary text may end in an ellipsis, and that is reported in its explanation and the decisions.
 - Resolution depends only on dimensions and constraints. `tests/engine.test.ts` checks that renaming a surface yields an identical result.
 

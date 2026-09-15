@@ -1,7 +1,7 @@
 // Composition families, background layering and typography: reusable engine capabilities,
 // checked on the four required surfaces with a deterministic measure.
 import { describe, expect, it } from "vitest";
-import { geometryErrors, resolve } from "../src/engine/resolver";
+import { completenessErrors, geometryErrors, resolve } from "../src/engine/resolver";
 import type { ResolvedElement, ResolvedLayout } from "../src/engine/layout";
 import type { Measure } from "../src/engine/text";
 import { sample, toSpec, validateCreative } from "../src/engine/creativeModel";
@@ -158,5 +158,97 @@ describe("compatibility", () => {
     copy.priorities.supporting = 1;
     copy.supporting = "Changed";
     expect(JSON.stringify(ex.creative)).toBe(before);
+  });
+});
+
+// Regression: composition candidates used to skip roles they cannot place (the typographic
+// family had no hero slot; product and panel had no decoration slot) while returning "ready".
+describe("content completeness", () => {
+  const book = "/examples/open-shelf-book.svg";
+  const families = ["product", "panel", "type"] as const;
+  const presence = ["absent", "optional", "required"] as const;
+  const creativeWith = (
+    composition: (typeof families)[number],
+    hero: (typeof presence)[number],
+    decoration: (typeof presence)[number],
+  ) => ({
+    ...sample,
+    composition,
+    image: hero === "absent" ? "" : sample.image,
+    decoration: decoration === "absent" ? "" : book,
+    required: { ...sample.required, image: hero === "required", decoration: decoration === "required" },
+  });
+
+  it.each(families)("places or explicitly omits every element in the %s composition, on every surface", (family) => {
+    for (const hero of presence)
+      for (const decoration of presence)
+        for (const s of required) {
+          const spec = toSpec(creativeWith(family, hero, decoration));
+          const r = resolve(spec, s, measure);
+          const label = `${family}, hero ${hero}, decoration ${decoration}, ${s.id}`;
+          expect(r.status, label).not.toBe("invalid");
+          if (r.status === "impossible") {
+            expect(r.elements, label).toEqual([]);
+            expect(r.errors.join(" "), label).not.toBe("");
+            continue;
+          }
+          const placed = r.elements.map((e) => e.id);
+          expect(new Set(placed).size, `${label}: duplicates`).toBe(placed.length);
+          for (const id of placed) expect(spec.elements.some((e) => e.id === id), `${label}: unexpected ${id}`).toBe(true);
+          for (const e of spec.elements) {
+            const inLayout = placed.includes(e.id);
+            const omitted = r.omitted.some((o) => o.id === e.id);
+            expect(inLayout !== omitted, `${label}: ${e.id} must be placed or recorded as omitted`).toBe(true);
+            if (e.required) expect(inLayout, `${label}: required ${e.id}`).toBe(true);
+            if (omitted) expect(r.status, label).toBe("adapted");
+          }
+          expect(r.decisions.filter((d) => /omitted/.test(d))).toHaveLength(r.omitted.length);
+          expect(geometryErrors(r.elements, s, r.panels), label).toEqual([]);
+        }
+  });
+
+  it("keeps a required hero image by falling back when the typographic composition has no image slot", () => {
+    const r = resolve(toSpec(creativeWith("type", "required", "absent")), kiosk, measure);
+    expect(["ready", "adapted"]).toContain(r.status);
+    expect(r.elements.some((e) => e.id === "image")).toBe(true);
+    expect(r.arrangement).not.toBe("type");
+    expect(r.decisions.join(" ")).toMatch(/typographic composition cannot place image \(hero\), so an automatic arrangement was used/);
+  });
+
+  it("keeps an optional hero image the same way instead of dropping it silently", () => {
+    const r = resolve(toSpec(creativeWith("type", "optional", "absent")), kiosk, measure);
+    expect(r.elements.some((e) => e.id === "image")).toBe(true);
+    expect(r.omitted).toEqual([]);
+  });
+
+  it.each(["product", "panel"] as const)("reports a required decoration the %s composition cannot place as impossible", (family) => {
+    const r = resolve(toSpec(creativeWith(family, "optional", "required")), kiosk, measure);
+    expect(r.status).toBe("impossible");
+    expect(r.elements).toEqual([]);
+    expect(r.errors[0]).toMatch(/^Required decoration cannot be placed by any arrangement available here\./);
+    expect(r.errors[0]).toMatch(/only by the typographic composition/);
+  });
+
+  it.each(["product", "panel"] as const)("records an optional decoration the %s composition cannot place as an explicit omission", (family) => {
+    const r = resolve(toSpec(creativeWith(family, "optional", "optional")), kiosk, measure);
+    expect(r.status).toBe("adapted");
+    expect(r.arrangement).toBe(family);
+    expect(r.elements.some((e) => e.id === "decoration")).toBe(false);
+    expect(r.omitted.map((o) => o.id)).toEqual(["decoration"]);
+    expect(r.decisions.join(" ")).toMatch(/decoration \(decoration, priority 5\) omitted: no arrangement available here can place it/);
+  });
+
+  it("keeps a required decoration where the typographic composition can place it", () => {
+    const r = resolve(toSpec(creativeWith("type", "absent", "required")), kiosk, measure);
+    expect(r.elements.some((e) => e.id === "decoration")).toBe(true);
+    expect(r.arrangement).toBe("type");
+  });
+
+  it("rejects candidate element sets that miss, duplicate or add elements", () => {
+    const active = [{ id: "headline" }, { id: "cta" }, { id: "image" }];
+    expect(completenessErrors([{ id: "headline" }, { id: "cta" }, { id: "image" }], active)).toEqual([]);
+    expect(completenessErrors([{ id: "headline" }, { id: "cta" }], active)).toEqual(["image: not placed"]);
+    expect(completenessErrors([...active, { id: "cta" }], active)).toEqual(["cta: placed 2 times"]);
+    expect(completenessErrors([...active, { id: "logo" }], active)).toEqual(["logo: not in the element set"]);
   });
 });

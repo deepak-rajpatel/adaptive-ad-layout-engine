@@ -1,6 +1,6 @@
 # Placement catalog verification
 
-Checked 14 September 2026 (step 3 of [planner-spec.md](planner-spec.md), gate B10). Only values in this file can ship in the catalog. Everything here is a planning check, not network approval.
+Checked 14 September 2026, as the planner's data-verification gate. Only values in this file can ship in the catalog. Everything here is a planning check, not network approval.
 
 **Status key**
 - **Verified:** read on the official page linked.
